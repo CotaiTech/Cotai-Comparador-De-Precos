@@ -1,10 +1,10 @@
 # CotaÍ
 
-Aplicação web em Next.js para comparar uma lista de compras entre supermercados, destacar promoções e sugerir uma compra otimizada item a item.
+Aplicação web em PHP/Laravel para comparar uma lista de compras entre supermercados, destacar promoções e sugerir uma compra otimizada item a item.
+
+Esta versão substitui a stack original (Next.js/TypeScript/React) por uma stack "mais raiz": **Laravel + Blade + PHP sessions + Eloquent/SQLite**, sem framework de frontend. Toda a interação (buscar, adicionar à lista, ajustar quantidade, comparar) acontece por formulários HTML tradicionais com `POST`/redirect, no estilo clássico de aplicação PHP.
 
 ## Objetivo
-
-O MVP foi desenhado para o fluxo principal do hackathon:
 
 1. Pesquisar produtos.
 2. Adicionar itens à lista.
@@ -13,228 +13,79 @@ O MVP foi desenhado para o fluxo principal do hackathon:
 5. Descobrir a melhor compra completa.
 6. Ver a compra otimizada escolhendo a loja mais barata por produto.
 
-O produto também possui uma camada voltada a restaurantes: perfil de operação, Radar CotaÍ, custo de deslocamento, histórico de planejamentos, relatórios e importação assistida de nota fiscal.
-
 ## Stack
 
-- Next.js
-- TypeScript
-- Tailwind CSS
-- Lucide Icons
-- API Routes / Route Handlers
-- Persistência simples com JSON para catálogos e `localStorage` para a lista
-- Login local com sessões em cookie `httpOnly`
-- Vitest para testes
+- PHP 8.3+ / Laravel 13
+- Blade (server-side rendering, sem JS de framework)
+- Eloquent + SQLite (trocável por MySQL/Postgres via `.env`)
+- Sessões nativas do Laravel (`SESSION_DRIVER=database`) para autenticação **e** para o carrinho de compras
+- Tailwind CSS (via Vite, apenas para estilos — nenhum JavaScript de aplicação é necessário)
+- PHPUnit para testes
+
+## Como rodar
+
+```bash
+composer install
+cp .env.example .env
+php artisan key:generate
+touch database/database.sqlite
+php artisan migrate --seed
+npm install && npm run build   # ou `npm run dev` durante o desenvolvimento
+php artisan serve
+```
+
+## Testes
+
+```bash
+php artisan test
+```
+
+Os testes em `tests/Unit/CatalogLogicTest.php` portam 1:1 os casos que existiam em `src/lib/normalize-product.test.ts` na versão Next.js, garantindo que a normalização de nomes, o matching de produtos e o cálculo de comparação de carrinho se comportam de forma idêntica após a reescrita.
 
 ## Arquitetura
 
-Estrutura principal:
-
 ```text
-src/
-  app/
-    api/
-      account/
-      auth/
-      compare/
-      plannings/
-      products/
-      promotions/
-      radar/
-    comparar/
-    promocoes/
-    page.tsx
-  components/
-  data/
-  lib/
-  providers/
+app/
+  Http/Controllers/
+    HomeController.php      # página inicial e /promocoes
+    CartController.php      # carrinho em sessão (add/update/remove/clear/compare)
+    Auth/                   # login e registro (sessão nativa do Laravel)
+  Models/
+    Product.php
+  Services/
+    ProductNormalizer.php   # normalização de nomes, embalagem, marca e categoria
+    ProductMatcher.php      # similaridade e matching entre descrições diferentes
+    PricingService.php      # preço por unidade/kg/litro e subtotal
+    CompareCartService.php  # totais, vencedor e compra otimizada
+    CatalogService.php      # busca, promoções e agrupamento por loja
+  Support/
+    Stores.php              # chaves e metadados das 4 lojas
+    Format.php              # formatação de moeda e data
+database/
+  migrations/
+  seeders/ProductSeeder.php # catálogo demonstrativo + snapshot real da Supermercado Escola
+resources/views/
+  layouts/app.blade.php
+  home.blade.php
+  auth/
+  partials/
 ```
 
-Separação de responsabilidades:
+## O que mudou de propósito em relação à versão Next.js
 
-- `providers/`: integrações por supermercado e fallback mock.
-- `data/`: snapshot real verificado e catálogo mock.
-- `lib/normalize-product.ts`: normalização e extração de embalagem.
-- `lib/matching.ts`: similaridade e matching entre descrições diferentes.
-- `lib/compare-cart.ts`: totais, vencedor e compra otimizada.
-- `components/`: interface do MVP.
-- `lib/auth.ts`: contas, sessões, perfil, radar e planejamentos persistidos em JSON.
-- `lib/route-optimizer.ts`: cenários de rota com distância e combustível.
-- `lib/receipt-parser.ts`: leitura estruturada do texto de cupons fiscais.
+- **Carrinho em sessão PHP**, não mais em `localStorage` do navegador: adicionar/remover/ajustar quantidade são formulários `POST` que redirecionam de volta (padrão Post/Redirect/Get).
+- **Busca via formulário `GET`**, sem busca "ao vivo" por JavaScript: digite e pressione buscar; a página recarrega com os resultados.
+- **Login/registro sem JavaScript**: formulários simples com validação e mensagens de erro do lado do servidor (`$errors`/`old()`), sessão de autenticação nativa do Laravel.
 
-## Recursos para restaurantes
+## Fora do escopo desta migração
 
-- Cadastro personalizado com perfil alimentar e dados operacionais.
-- Plano CotaÍ Pro demonstrativo de R$ 119,90/mês, sem cobrança real.
-- Radar de produtos de alto interesse e busca de promoções relacionadas.
-- Cenários de rota rápida, curta e de máxima economia considerando combustível.
-- Planejamentos nomeados e associados à conta da empresa.
-- Histórico com economia acumulada.
-- Relatórios resumido e completo, com visualização e opção de salvar em PDF pelo navegador.
-- Importação assistida de nota fiscal por texto e tentativa de leitura de QR Code da NFC-e.
-- Tour inicial e animação de entrada da marca.
+Esta reescrita cobriu o **fluxo principal** (busca, carrinho, comparação, promoções e autenticação). Os seguintes recursos existiam na versão Next.js e **não foram portados** — ficam registrados aqui para uma eventual v2:
 
-## Providers
+- Scrapers ao vivo (Puppeteer/HTML) dos supermercados Amantino e BH, e a busca ao vivo do Supermercado Escola. O catálogo agora é 100% estático (seed), como já era o fallback mock/real da versão original.
+- Radar CotaÍ (acompanhar produtos), Relatórios (resumo/completo, exportação em PDF), Importação de nota fiscal (parser + leitura de QR Code da NFC-e).
+- Perfil de operação do restaurante, cenários de rota/combustível e personalização por preferência alimentar.
+- Plano CotaÍ Pro (tela de assinatura demonstrativa).
 
-Interface base:
+## Providers originais
 
-```ts
-interface StoreProvider {
-  searchProducts(query: string): Promise<Product[]>;
-  getProducts(): Promise<Product[]>;
-  getPromotions(): Promise<Product[]>;
-}
-```
-
-Implementações atuais:
-
-- `SupermercadoEscolaProvider`
-  - Estratégia híbrida.
-  - Usa snapshot local de produtos reais verificados publicamente.
-  - Tenta busca pública no site com fallback para dados locais/mock.
-- `AmantinoProvider`
-  - Estratégia híbrida com scraper ao vivo.
-  - Usa um scraper em Puppeteer para carregar a página pública renderizada e extrair resultados de busca e promoções.
-  - Tem fallback local apenas se o site falhar temporariamente.
-- `BhProvider`
-  - Consulta o autocomplete público usado pelo site oficial para localizar Viçosa/MG.
-  - Consulta o endpoint público de folhetos vigentes e extrai os PDFs textuais.
-  - Obtém nome, embalagem, preço promocional, preço anterior, desconto e URL de origem.
-- `BahamasProvider`
-  - Descobre automaticamente os PDFs atuais na página oficial de encartes.
-  - Por padrão usa a região Zona da Mata (`BAHAMAS_REGION=zm`).
-  - Lê apenas PDFs com texto suficientemente estruturado; encartes compostos só por imagens são ignorados.
-
-Os providers de folhetos mantêm cache em memória por 30 minutos. É possível alterar o período com `FLYER_CACHE_MINUTES` e a cidade do BH com `BH_CITY`/`BH_STATE`.
-
-## Dados reais e simulados
-
-### Dados reais verificados
-
-Atualmente o projeto inclui um pequeno snapshot local de produtos do Supermercado Escola, com preços observados em páginas públicas do site em 22/08/2026:
-
-- Manteiga Viçosa 500g
-- Requeijão Viçosa Cremoso Pote 400g
-- Creme de Ricota Viçosa Pote 200g
-- Doce de Leite Viçosa Tradicional 400g
-- Leite Viçosa Tipo C 1L
-
-Também são consultadas automaticamente as ofertas vigentes publicadas nos folhetos oficiais do Supermercados BH para Viçosa/MG e do Bahamas para a Zona da Mata. Cada produto extraído mantém `source: "real"`, horário da consulta e link para o PDF de origem.
-
-### Dados simulados
-
-- Parte do catálogo complementar do Supermercado Escola.
-- Fallback local do Amantino somente se a coleta ao vivo falhar.
-- Catálogo complementar de BH e Bahamas para itens ausentes nos folhetos ou quando a fonte oficial estiver indisponível.
-
-Quando algum fallback é usado, os cards exibem `Preço demonstrativo`.
-
-## Como instalar
-
-```bash
-npm install
-```
-
-## Como executar
-
-```bash
-npm run dev
-```
-
-Aplicação padrão em:
-
-```text
-http://localhost:3000
-```
-
-## Como funcionam as comparações
-
-- A busca retorna produtos dos providers disponíveis.
-- O carrinho guarda a lista localmente no navegador.
-- A comparação usa matching por similaridade textual, marca e embalagem.
-- Produtos com embalagens incompatíveis não são tratados como equivalentes automaticamente.
-- Produtos indisponíveis aparecem como `Não encontrado`, nunca como `R$ 0,00`.
-- O vencedor da compra completa só é declarado quando as duas lojas encontram todos os itens.
-- A compra otimizada escolhe o menor subtotal disponível por produto.
-
-## Como atualizar os produtos
-
-### Snapshot real do Supermercado Escola
-
-Atualize o arquivo:
-
-- `src/data/products.json`
-
-### Catálogo mock
-
-Atualize o arquivo:
-
-- `src/data/mock-catalog.ts`
-
-### Scraper do Amantino
-
-Executar busca ao vivo:
-
-```bash
-npm run scrape:amantino -- --query arroz
-```
-
-Executar promoções ao vivo:
-
-```bash
-npm run scrape:amantino -- --promocoes
-```
-
-### Folhetos do BH e Bahamas
-
-Atualizar e conferir a contagem dos encartes vigentes:
-
-```bash
-npm run scrape:flyers
-```
-
-Filtrar uma loja ou imprimir os produtos no formato usado pelo site:
-
-```bash
-npm run scrape:flyers -- --store bh --json
-npm run scrape:flyers -- --store bahamas --json
-```
-
-## Login
-
-O MVP possui cadastro e login para restaurantes/empresas em `/login`.
-
-- As contas ficam em `data/users.json` no ambiente local.
-- Senhas são armazenadas usando hash `scrypt`, nunca em texto puro.
-- A sessão é mantida em cookie `httpOnly` por até 30 dias.
-- Essa persistência é apropriada para a demonstração local. Em produção, substitua o arquivo JSON por SQLite ou um banco gerenciado e configure uma estratégia de recuperação de senha.
-
-A identidade da empresa já está disponível para que histórico de economia e estoque sejam vinculados à conta em uma próxima etapa.
-
-## Testes incluídos
-
-Cobertura atual:
-
-- `normalizeProductName()`
-- `calculateProductSimilarity()`
-- subtotal do produto
-- total do carrinho
-- supermercado vencedor
-- economia em reais
-- economia percentual
-- produto inexistente em uma loja
-- comparação por kg
-- comparação por litro
-
-## Limitações atuais
-
-- O provider do Supermercado Escola é híbrido e não depende exclusivamente do site para o MVP funcionar.
-- O scraper do Amantino depende da renderização pública atual da página e pode precisar ajustes se a estrutura visual/DOM mudar.
-- Os scrapers de folhetos dependem dos endpoints, links e estrutura textual pública dos PDFs. PDFs somente com imagens são descartados porque o MVP não executa OCR.
-- Preço publicado em folheto confirma oferta e vigência, mas não confirma estoque em tempo real da loja; a disponibilidade continua sujeita ao aviso do próprio encarte.
-- A busca ao vivo do Supermercado Escola usa parsing HTML simples e pode precisar ajustes se o markup público mudar.
-- Não há recuperação de senha, controle de permissões, checkout, pagamento, pedidos reais ou painel administrativo.
-- O plano de R$ 119,90 é apenas demonstrativo; não há cobrança ou gateway de pagamento.
-- Distâncias e preço do combustível são configurados manualmente no perfil. Mapas, trânsito e preço oficial ao vivo ainda não estão integrados.
-- A foto da nota tenta reconhecer o QR Code quando o navegador oferece suporte. OCR completo da imagem ainda não está disponível; o texto pode ser colado ou digitado para importação.
-- “Salvar em PDF” usa o diálogo de impressão do navegador.
+A versão Next.js tinha uma camada de `providers` por supermercado (real/híbrido/mock) com scraping ao vivo. Como o scraping ficou fora do escopo desta migração, o `CatalogService` consulta diretamente a tabela `products`, já populada pelo seeder com o mesmo catálogo demonstrativo (`mock`) e o snapshot real da Supermercado Escola (`real`) que existiam em `src/data/mock-catalog.ts` e `src/data/products.json`.
