@@ -7,7 +7,6 @@ import { ProductSearch } from "@/components/product-search";
 import { PromotionCard } from "@/components/promotion-card";
 import { ShoppingCart, CartViewItem } from "@/components/shopping-cart";
 import { ComparisonResult } from "@/components/comparison-result";
-import { DemoBanner } from "@/components/demo-banner";
 import { CompareResult } from "@/lib/compare-cart";
 import { Product } from "@/providers/types";
 import { AccountUser } from "@/lib/account-types";
@@ -32,6 +31,7 @@ export function HomeClient({
   const [comparisonError, setComparisonError] = useState("");
   const [user, setUser] = useState<AccountUser | null>(null);
   const [radarMessage, setRadarMessage] = useState("");
+  const [searchClearSignal, setSearchClearSignal] = useState(0);
 
   useEffect(() => {
     fetch("/api/auth/me").then((response) => response.json()).then((data: { user: AccountUser | null }) => setUser(data.user)).catch(() => null);
@@ -161,6 +161,7 @@ export function HomeClient({
 
       const data = (await response.json()) as CompareResult;
       setComparison(data);
+      setSearchClearSignal((current) => current + 1);
     } catch {
       setComparisonError("Não foi possível comparar sua lista agora.");
     } finally {
@@ -175,7 +176,6 @@ export function HomeClient({
       <Navbar />
 
       <main className="mx-auto flex max-w-7xl flex-col gap-10 px-4 py-8 sm:px-6 lg:px-8">
-        <DemoBanner />
         {radarMessage ? <p className="rounded-2xl bg-emerald-50 px-4 py-3 text-sm text-emerald-800">{radarMessage}</p> : null}
 
         {!promotionsOnly && !compareOnly ? (
@@ -183,7 +183,7 @@ export function HomeClient({
             <div>
               <div className="inline-flex items-center gap-2 rounded-full bg-white px-4 py-2 text-sm font-medium text-emerald-700 shadow-sm">
                 <CheckCircle2 className="h-4 w-4" />
-                Comparação rápida para o hackathon
+                Comparação inteligente para compras
               </div>
               <h1 className="mt-6 max-w-2xl text-5xl font-semibold tracking-tight text-slate-950 sm:text-6xl">
                 Compare sua compra e economize.
@@ -202,7 +202,7 @@ export function HomeClient({
 
             <div className="rounded-[36px] border border-black/5 bg-white p-6 shadow-[0_18px_45px_rgba(16,34,21,0.08)]">
               <div className="rounded-[28px] bg-gradient-to-br from-emerald-500 to-emerald-700 p-6 text-white">
-                <p className="text-sm uppercase tracking-[0.24em] text-emerald-100">Fluxo principal</p>
+                <p className="text-sm uppercase tracking-[0.24em] text-emerald-100">Como funciona</p>
                 <div className="mt-6 space-y-4">
                   {[
                     "Pesquise produtos",
@@ -236,6 +236,7 @@ export function HomeClient({
                   onIncrease={increaseProductQuantity}
                   onDecrease={decreaseProductQuantity}
                   onTrack={handleTrack}
+                  clearSignal={searchClearSignal}
                 />
               ) : null}
               {comparisonError ? (
