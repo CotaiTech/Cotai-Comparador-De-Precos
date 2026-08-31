@@ -4,6 +4,7 @@ import { db as prisma } from "@/lib/db";
 const args = process.argv.slice(2);
 const queryIndex = args.indexOf("--query");
 const promotionsOnly = args.includes("--promocoes");
+const resume = args.includes("--resume");
 
 async function main() {
   if (queryIndex >= 0 && args[queryIndex + 1]) {
@@ -19,7 +20,7 @@ async function main() {
     return;
   }
 
-  const products = await scrapeAllAmantinoSeededProducts();
+  const products = await scrapeAllAmantinoSeededProducts({ resume });
   console.log(`Amantino: ${products.length} produto(s) atualizados no banco.`);
 }
 
