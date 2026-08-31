@@ -2,15 +2,138 @@ import { Product } from "@/providers/types";
 import {
   classifyProduct,
   extractPackaging,
+  getNormalizedProductName,
   inferBrand,
   normalizeProductName,
+  normalizeProductNameForMatching,
   toComparableAmount,
   tokenizeProductName,
 } from "@/lib/normalize-product";
 
+export type CanonicalProductMatchCandidate = {
+  id: string;
+  name: string;
+  normalizedName?: string | null;
+};
+
+export function levenshteinDistance(left: string, right: string) {
+  if (left === right) {
+    return 0;
+  }
+
+  if (left.length === 0) {
+    return right.length;
+  }
+
+  if (right.length === 0) {
+    return left.length;
+  }
+
+  const previous = Array.from({ length: right.length + 1 }, (_, index) => index);
+  const current = Array.from({ length: right.length + 1 }, () => 0);
+
+  for (let leftIndex = 1; leftIndex <= left.length; leftIndex += 1) {
+    current[0] = leftIndex;
+
+    for (let rightIndex = 1; rightIndex <= right.length; rightIndex += 1) {
+      const substitutionCost = left[leftIndex - 1] === right[rightIndex - 1] ? 0 : 1;
+
+      current[rightIndex] = Math.min(
+        current[rightIndex - 1] + 1,
+        previous[rightIndex] + 1,
+        previous[rightIndex - 1] + substitutionCost
+      );
+    }
+
+    for (let index = 0; index <= right.length; index += 1) {
+      previous[index] = current[index];
+    }
+  }
+
+  return previous[right.length];
+}
+
+function calculateStringSimilarity(left: string, right: string) {
+  const longest = Math.max(left.length, right.length);
+
+  if (longest === 0) {
+    return 1;
+  }
+
+  return 1 - levenshteinDistance(left, right) / longest;
+}
+
+function calculateDirectionalTokenSimilarity(sourceTokens: string[], targetTokens: string[]) {
+  if (sourceTokens.length === 0 || targetTokens.length === 0) {
+    return 0;
+  }
+
+  const total = sourceTokens.reduce((sum, sourceToken) => {
+    const bestTokenScore = Math.max(
+      ...targetTokens.map((targetToken) => calculateStringSimilarity(sourceToken, targetToken))
+    );
+
+    return sum + bestTokenScore;
+  }, 0);
+
+  return total / sourceTokens.length;
+}
+
+export function calculateTokenFuzzySimilarity(left: string, right: string) {
+  const leftTokens = tokenizeProductName(left);
+  const rightTokens = tokenizeProductName(right);
+
+  if (leftTokens.length === 0 || rightTokens.length === 0) {
+    return 0;
+  }
+
+  const sortedLeftTokens = [...leftTokens].sort();
+  const sortedRightTokens = [...rightTokens].sort();
+
+  if (
+    sortedLeftTokens.length === sortedRightTokens.length &&
+    sortedLeftTokens.every((token, index) => token === sortedRightTokens[index])
+  ) {
+    return 1;
+  }
+
+  const forwardScore = calculateDirectionalTokenSimilarity(leftTokens, rightTokens);
+  const reverseScore = calculateDirectionalTokenSimilarity(rightTokens, leftTokens);
+  const normalizedLeft = normalizeProductNameForMatching(left);
+  const normalizedRight = normalizeProductNameForMatching(right);
+  const phraseScore = calculateStringSimilarity(normalizedLeft, normalizedRight);
+
+  return Number((forwardScore * 0.4 + reverseScore * 0.4 + phraseScore * 0.2).toFixed(4));
+}
+
+export function findClosestCanonicalProductId(
+  scrapedProductName: string,
+  canonicalProducts: CanonicalProductMatchCandidate[],
+  threshold = 0.85
+) {
+  const ranked = canonicalProducts
+    .map((product) => {
+      const canonicalName = getNormalizedProductName(product);
+
+      return {
+        id: product.id,
+        score: calculateTokenFuzzySimilarity(getNormalizedProductName(scrapedProductName), canonicalName),
+      };
+    })
+    .sort((left, right) => right.score - left.score);
+
+  const best = ranked[0];
+
+  if (!best || best.score < threshold) {
+    return null;
+  }
+
+  return best.id;
+}
+
 export function calculateProductSimilarity(query: string, product: Product) {
-  const normalizedQuery = normalizeProductName(query);
-  const productName = product.normalizedName || normalizeProductName(product.name);
+  const normalizedQuery = getNormalizedProductName(query);
+  const productName = getNormalizedProductName(product);
 
   const queryTokens = new Set(tokenizeProductName(query));
   const productTokens = new Set(tokenizeProductName(productName));
@@ -59,6 +182,7 @@ export function calculateProductSimilarity(query: string, product: Product) {
   const productBrand = product.brand ? normalizeProductName(product.brand) : undefined;
   const brandConflict = Boolean(queryBrand) && Boolean(productBrand) && queryBrand !== productBrand;
   const brandScore = !queryBrand || !productBrand ? 0.5 : queryBrand === productBrand ? 1 : 0;
+  const fuzzyScore = calculateTokenFuzzySimilarity(normalizedQuery, productName);
 
   if (categoryConflict || brandConflict) {
     return 0;
@@ -73,8 +197,9 @@ export function calculateProductSimilarity(query: string, product: Product) {
   }
 
   const score =
-    textScore * 0.3 +
-    anchorScore * 0.3 +
+    fuzzyScore * 0.3 +
+    textScore * 0.15 +
+    anchorScore * 0.15 +
     packagingScore * 0.25 +
     brandScore * 0.05 +
     categoryScore * 0.1;

@@ -1,0 +1,105 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+enum ProductUnit {
+  GRAM
+  KILOGRAM
+  MILLILITER
+  LITER
+  UNIT
+}
+
+enum StandardUnit {
+  GRAM
+  MILLILITER
+  UNIT
+}
+
+enum ProductSource {
+  REAL
+  MOCK
+}
+
+model Store {
+  id           String         @id @default(cuid())
+  key          String         @unique
+  name         String
+  slug         String         @unique
+  websiteUrl   String?
+  priceHistory PriceHistory[]
+  promotions   Promotion[]
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+}
+
+model Product {
+  id                   String         @id @default(cuid())
+  externalId           String?
+  name                 String
+  normalizedName       String
+  brand                String?
+  packageText          String?
+  quantity             Decimal?       @db.Decimal(10, 3)
+  unit                 ProductUnit?
+  standardizedQuantity Decimal?       @db.Decimal(10, 3)
+  standardizedUnit     StandardUnit?
+  imageUrl             String?
+  productUrl           String?
+  source               ProductSource  @default(REAL)
+  available            Boolean        @default(true)
+  priceHistory         PriceHistory[]
+  promotions           Promotion[]
+  createdAt            DateTime       @default(now())
+  updatedAt            DateTime       @updatedAt
+
+  @@index([normalizedName])
+  @@index([brand])
+}
+
+model PriceHistory {
+  id            String        @id @default(cuid())
+  productId     String
+  storeId       String
+  price         Decimal       @db.Decimal(10, 2)
+  originalPrice Decimal?      @db.Decimal(10, 2)
+  promotion     Boolean       @default(false)
+  source        ProductSource @default(REAL)
+  observedAt    DateTime      @default(now())
+  product       Product       @relation(fields: [productId], references: [id], onDelete: Cascade)
+  store         Store         @relation(fields: [storeId], references: [id], onDelete: Cascade)
+
+  @@unique([productId, storeId, observedAt])
+  @@index([storeId, observedAt])
+  @@index([productId, observedAt])
+}
+
+model Promotion {
+  id                 String        @id @default(cuid())
+  productId          String
+  storeId            String
+  title              String?
+  description        String?
+  price              Decimal?      @db.Decimal(10, 2)
+  originalPrice      Decimal?      @db.Decimal(10, 2)
+  discountPercentage Int?
+  startsAt           DateTime?
+  endsAt             DateTime?
+  active             Boolean       @default(true)
+  sourceUrl          String?
+  source             ProductSource @default(REAL)
+  product            Product       @relation(fields: [productId], references: [id], onDelete: Cascade)
+  store              Store         @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  createdAt          DateTime      @default(now())
+  updatedAt          DateTime      @updatedAt
+
+  @@index([storeId, active])
+  @@index([productId, active])
+  @@index([startsAt, endsAt])
+}

@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { createDefaultProfile } from "@/lib/account-types";
 import { CompareResult } from "@/lib/compare-cart";
-import { calculateRouteScenarios } from "@/lib/route-optimizer";
+import { calculateRouteScenarios, recommendShoppingRoute } from "@/lib/route-optimizer";
 import { storeKeys } from "@/lib/store";
 
 describe("calculateRouteScenarios", () => {
@@ -18,5 +18,53 @@ describe("calculateRouteScenarios", () => {
     expect(economical?.distance).toBe(10);
     expect(economical?.travelCost).toBe(6);
     expect(economical?.adjustedTotal).toBe(96);
+  });
+});
+
+describe("recommendShoppingRoute", () => {
+  const startingCoordinates = { latitude: 0, longitude: 0 };
+  const storeCoordinates = {
+    escola: { latitude: 0, longitude: 0.009 },
+    amantino: { latitude: 0, longitude: 0.018 },
+    bahamas: { latitude: 0, longitude: 0.027 },
+  };
+  const items = [
+    {
+      name: "Arroz 5kg",
+      quantity: 1,
+      prices: { escola: 30, amantino: 24, bahamas: 32 },
+    },
+    {
+      name: "Leite 1L",
+      quantity: 1,
+      prices: { escola: 8, amantino: 9, bahamas: 4 },
+    },
+  ];
+
+  it("recomenda dividir em duas lojas quando a economia supera o deslocamento", () => {
+    const result = recommendShoppingRoute(items, startingCoordinates, {
+      costPerKm: 0.5,
+      storeCoordinates,
+    });
+
+    expect(result.recommendation).toMatchObject({
+      type: "split-two-stores",
+      stores: ["amantino", "bahamas"],
+      purchaseCost: 28,
+    });
+    expect(result.recommendation?.adjustedTotal).toBeLessThan(38);
+  });
+
+  it("recomenda loja unica quando a penalidade de viagem elimina a economia", () => {
+    const result = recommendShoppingRoute(items, startingCoordinates, {
+      costPerKm: 5,
+      storeCoordinates,
+    });
+
+    expect(result.recommendation).toMatchObject({
+      type: "single-store",
+      stores: ["escola"],
+      purchaseCost: 38,
+    });
   });
 });

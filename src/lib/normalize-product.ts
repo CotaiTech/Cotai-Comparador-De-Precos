@@ -29,7 +29,29 @@ export type ParsedPackaging = {
   packageText?: string;
 };
 
-const stopwords = new Set([
+export type NormalizedProductIdentityInput = {
+  name: string;
+  normalizedName?: string | null;
+  packageText?: string | null;
+};
+
+export type ExtractedProductMeasure = {
+  quantity: number;
+  unit: "g" | "kg" | "ml" | "l";
+  standardizedQuantity: number;
+  standardizedUnit: "kg" | "l";
+  packageText: string;
+};
+
+export type StandardizedPricePerUnit = {
+  value: number;
+  unit: "kg" | "l";
+  quantity: number;
+  sourceQuantity: number;
+  sourceUnit: ExtractedProductMeasure["unit"];
+};
+
+export const productNameStopwords = new Set([
   "de",
   "da",
   "do",
@@ -77,21 +99,117 @@ export function normalizeProductName(value: string) {
     .trim();
 }
 
-export function extractPackaging(text: string): ParsedPackaging {
-  const normalized = normalizeProductName(text);
-  const match = normalized.match(/(\d+(?:[.,]\d+)?)\s?(kg|g|ml|l|un)\b/);
+export function getNormalizedProductName(input: NormalizedProductIdentityInput | string) {
+  if (typeof input === "string") {
+    return normalizeProductName(input);
+  }
 
-  if (!match) {
+  return normalizeProductName(input.normalizedName || input.name);
+}
+
+export function getNormalizedPackageText(packageText?: string | null) {
+  return packageText ? normalizeProductName(packageText).replace(/\s+/g, "") : undefined;
+}
+
+export function getProductIdentityKey(input: NormalizedProductIdentityInput) {
+  return `${getNormalizedProductName(input)}|${getNormalizedPackageText(input.packageText) ?? ""}`;
+}
+
+export function extractPackaging(text: string): ParsedPackaging {
+  const parsedMeasure = extractProductMeasure(text);
+
+  if (parsedMeasure) {
+    return {
+      quantity: parsedMeasure.quantity,
+      unit: parsedMeasure.unit,
+      packageText: parsedMeasure.packageText,
+    };
+  }
+
+  const normalized = normalizeProductName(text);
+  const unitMatch = normalized.match(/(\d+(?:[.,]\d+)?)\s?(un)\b/);
+
+  if (!unitMatch) {
     return {};
   }
 
-  const quantity = Number(match[1].replace(",", "."));
-  const unit = match[2] as ParsedPackaging["unit"];
+  const quantity = Number(unitMatch[1].replace(",", "."));
+  const unit = unitMatch[2] as ParsedPackaging["unit"];
 
   return {
     quantity,
+    unit: Number.isFinite(quantity) ? unit : undefined,
+    packageText: Number.isFinite(quantity)
+      ? `${String(unitMatch[1]).replace(".", ",")}${unit}`
+      : undefined,
+  };
+}
+
+export function extractProductMeasure(text: string): ExtractedProductMeasure | null {
+  const normalized = normalizeProductName(text);
+  const measureRegex = /(?:(\d+)\s*x\s*)?(\d+(?:[.,]\d+)?)\s?(kg|g|ml|l)\b/g;
+  const matches = [...normalized.matchAll(measureRegex)];
+  const match = matches.at(-1);
+
+  if (!match) {
+    return null;
+  }
+
+  const multiplier = match[1] ? Number(match[1]) : 1;
+  const quantity = Number(match[2].replace(",", "."));
+  const unit = match[3] as ExtractedProductMeasure["unit"];
+
+  if (
+    !Number.isFinite(multiplier) ||
+    !Number.isFinite(quantity) ||
+    multiplier <= 0 ||
+    quantity <= 0
+  ) {
+    return null;
+  }
+
+  const totalQuantity = quantity * multiplier;
+  const standardized: Pick<ExtractedProductMeasure, "standardizedQuantity" | "standardizedUnit"> =
+    unit === "kg" || unit === "l"
+      ? { standardizedQuantity: totalQuantity, standardizedUnit: unit }
+      : {
+          standardizedQuantity: totalQuantity / 1000,
+          standardizedUnit: unit === "g" ? "kg" : "l",
+        };
+  const displayQuantity = Number.isInteger(totalQuantity)
+    ? String(totalQuantity)
+    : String(totalQuantity).replace(".", ",");
+
+  return {
+    quantity: totalQuantity,
     unit,
-    packageText: `${String(match[1]).replace(".", ",")}${unit}`,
+    standardizedQuantity: standardized.standardizedQuantity,
+    standardizedUnit: standardized.standardizedUnit,
+    packageText: `${displayQuantity}${unit}`,
+  };
+}
+
+export function calculateStandardizedPricePerUnit(
+  productName: string,
+  totalPrice: number
+): StandardizedPricePerUnit | null {
+  const measure = extractProductMeasure(productName);
+
+  if (
+    !measure ||
+    !Number.isFinite(totalPrice) ||
+    totalPrice < 0 ||
+    measure.standardizedQuantity <= 0
+  ) {
+    return null;
+  }
+
+  return {
+    value: Number((totalPrice / measure.standardizedQuantity).toFixed(2)),
+    unit: measure.standardizedUnit,
+    quantity: measure.standardizedQuantity,
+    sourceQuantity: measure.quantity,
+    sourceUnit: measure.unit,
   };
 }
 
@@ -145,8 +263,12 @@ export function tokenizeProductName(text: string) {
   return normalizeProductName(text)
     .split(" ")
     .filter(Boolean)
-    .filter((token) => !stopwords.has(token))
+    .filter((token) => !productNameStopwords.has(token))
     .filter((token) => !/^\d+(?:,\d+)?$/.test(token));
+}
+
+export function normalizeProductNameForMatching(text: string) {
+  return tokenizeProductName(text).join(" ");
 }
 
 export function classifyProduct(text: string) {

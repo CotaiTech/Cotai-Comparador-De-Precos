@@ -1,6 +1,7 @@
 import puppeteer, { Browser, LaunchOptions, Page } from "puppeteer";
 import { existsSync } from "node:fs";
 import { extractPackaging, inferBrand, normalizeProductName } from "@/lib/normalize-product";
+import { persistScrapedProducts } from "@/lib/product-persistence";
 import { Product } from "@/providers/types";
 
 type ScrapeOptions = {
@@ -22,33 +23,40 @@ type NormalizedCard = Product;
 const DEFAULT_LIMIT = 60;
 const AMANTINO_BASE_URL = "https://amantino.marketmine.com.br/principal";
 const CACHE_TTL_MS = 1000 * 60 * 10;
+const PRODUCT_LOAD_TIMEOUT_MS = 90_000;
+const SCROLL_DELAY_MS = 2_500;
 
 const querySeeds = [
-  "arroz",
-  "feijao",
-  "oleo",
-  "leite",
-  "acucar",
-  "cafe",
-  "farinha",
-  "macarrao",
-  "manteiga",
-  "queijo",
-  "presunto",
-  "pao",
-  "refrigerante",
-  "suco",
-  "agua",
-  "carne",
-  "frango",
-  "linguica",
-  "tomate",
-  "batata",
-  "cebola",
-  "alface",
-  "detergente",
-  "sabao",
-  "papel",
+  "Alimento-Infantil",
+  "Azeite-E-Oleo-Composto",
+  "Bebida-Alcoolica",
+  "Bebida-Nao-Alcoolica",
+  "Biscoito",
+  "Bomboniere",
+  "Carne",
+  "Cereais",
+  "Cerveja",
+  "Congelado",
+  "Conservas",
+  "Descartável",
+  "Emporio",
+  "Frios-E-Laticinios",
+  "Higiene-E-Beleza",
+  "Hortifruti",
+  "Inseticida-Repelente",
+  "Limpeza",
+  "Massas-E-Sopas",
+  "Matinal",
+  "Molhos-E-Temperos",
+  "Naturais",
+  "Oriental",
+  "Padaria",
+  "Papelaria",
+  "Pet-Shop",
+  "Po-Para-Preparos",
+  "Produto-Amantino",
+  "Sobremesas",
+  "Utilidade",
 ];
 
 const cache = new Map<string, { expiresAt: number; products: Product[] }>();
@@ -61,27 +69,59 @@ export async function scrapeAmantinoProducts(options: ScrapeOptions = {}) {
     return cached.products;
   }
 
-  const products = await withBrowser(async (browser) => {
-    const page = await browser.newPage();
-    await page.setViewport({ width: 1440, height: 900, deviceScaleFactor: 2 });
-    await page.goto(buildAmantinoUrl(options), {
+  return withBrowser((browser) => scrapeAmantinoProductsWithBrowser(browser, options, key));
+}
+
+export async function scrapeAllAmantinoSeededProducts() {
+  return withBrowser(async (browser) => {
+    const allProducts: Product[] = [];
+
+    for (let index = 0; index < querySeeds.length; index += 1) {
+      const query = querySeeds[index];
+      console.log(`Amantino: scraping category ${index + 1}/${querySeeds.length}: ${query}`);
+
+      try {
+        const key = JSON.stringify({ query, limit: 40 });
+        const products = await scrapeAmantinoProductsWithBrowser(browser, { query, limit: 40 }, key);
+        allProducts.push(...products);
+      } catch (error) {
+        console.error(`Amantino: failed category ${query}:`, error);
+      }
+    }
+
+    return dedupeProducts(allProducts);
+  });
+}
+
+async function scrapeAmantinoProductsWithBrowser(
+  browser: Browser,
+  options: ScrapeOptions,
+  key: string
+) {
+  const cached = cache.get(key);
+
+  if (cached && cached.expiresAt > Date.now()) {
+    return cached.products;
+  }
+
+  const page = await browser.newPage();
+
+  try {
+    const url = buildAmantinoUrl(options);
+    console.log(`Amantino: opening ${url}`);
+    await page.setViewport({ width: 800, height: 600, deviceScaleFactor: 1 });
+    await page.goto(url, {
       waitUntil: "domcontentloaded",
-      timeout: 60_000,
+      timeout: PRODUCT_LOAD_TIMEOUT_MS,
     });
 
-    await page.waitForFunction(
-      () => {
-        const list = document.querySelector("#CRDPRODUTOSFRAPRODUTOS");
-        const titles = Array.from(document.querySelectorAll("h5")).filter(
-          (heading) => (heading.textContent ?? "").trim().length > 0
-        );
-        return Boolean(list) && titles.length > 1;
-      },
-      { timeout: 60_000 }
-    );
+    console.log("Amantino: waiting for product cards...");
+    await waitForProductCards(page);
+    console.log("Amantino: product cards detected.");
 
     await autoScrollProductList(page, options.limit ?? DEFAULT_LIMIT);
 
+    console.log("Amantino: extracting product cards from DOM...");
     const rawCards = await page.evaluate(() => {
       const container = document.querySelector("#CRDPRODUTOSFRAPRODUTOS");
       if (!container) {
@@ -111,21 +151,16 @@ export async function scrapeAmantinoProducts(options: ScrapeOptions = {}) {
         .filter((card) => card.name.length > 0);
     });
 
+    console.log(`Amantino: extracted ${rawCards.length} raw card(s).`);
+    const products = normalizeAmantinoCards(rawCards, Boolean(options.promotionsOnly));
+    console.log(`Amantino: normalized ${products.length} product(s), persisting to database...`);
+    const savedProducts = await persistScrapedProducts(products);
+    console.log(`Amantino: persisted ${savedProducts.length} product(s).`);
+    cache.set(key, { expiresAt: Date.now() + CACHE_TTL_MS, products: savedProducts });
+    return savedProducts;
+  } finally {
     await page.close();
-
-    return normalizeAmantinoCards(rawCards, Boolean(options.promotionsOnly));
-  });
-
-  cache.set(key, { expiresAt: Date.now() + CACHE_TTL_MS, products });
-  return products;
-}
-
-export async function scrapeAllAmantinoSeededProducts() {
-  const allResults = await Promise.all(
-    querySeeds.map((query) => scrapeAmantinoProducts({ query, limit: 40 }))
-  );
-
-  return dedupeProducts(allResults.flat());
+  }
 }
 
 function buildAmantinoUrl(options: ScrapeOptions) {
@@ -134,7 +169,7 @@ function buildAmantinoUrl(options: ScrapeOptions) {
   }
 
   if (options.query?.trim()) {
-    return `${AMANTINO_BASE_URL}?Produto=${encodeURIComponent(options.query.trim())}`;
+    return `${AMANTINO_BASE_URL}?Categoria=${encodeURIComponent(options.query.trim())}`;
   }
 
   return AMANTINO_BASE_URL;
@@ -144,11 +179,13 @@ async function autoScrollProductList(page: Page, limit: number) {
   let previousCount = 0;
   let stableRounds = 0;
 
-  while (stableRounds < 3) {
+  while (stableRounds < 4) {
     const currentCount = await page.evaluate(() => {
       const container = document.querySelector("#CRDPRODUTOSFRAPRODUTOS");
       return container?.querySelectorAll("li.cardorion h5").length ?? 0;
     });
+
+    console.log(`Amantino: product list currently has ${currentCount} card(s).`);
 
     if (currentCount >= limit) {
       break;
@@ -165,10 +202,43 @@ async function autoScrollProductList(page: Page, limit: number) {
       const container = document.querySelector("#CRDPRODUTOSFRAPRODUTOS");
       if (container) {
         container.scrollTop = container.scrollHeight;
+        container.dispatchEvent(new Event("scroll", { bubbles: true }));
       }
     });
 
-    await new Promise((resolve) => setTimeout(resolve, 1200));
+    await waitForProductCountChange(page, currentCount, SCROLL_DELAY_MS);
+  }
+}
+
+async function waitForProductCards(page: Page) {
+  await page.waitForFunction(
+    () => {
+      const container = document.querySelector("#CRDPRODUTOSFRAPRODUTOS");
+      if (!container) {
+        return false;
+      }
+
+      const cards = Array.from(container.querySelectorAll("li.cardorion"));
+      return cards.some((card) => {
+        const name = card.querySelector("h5")?.textContent?.trim();
+        const text = card.textContent ?? "";
+        return Boolean(name) && /R\$\s*[\d.,]+/.test(text);
+      });
+    },
+    { timeout: PRODUCT_LOAD_TIMEOUT_MS }
+  );
+}
+
+async function waitForProductCountChange(page: Page, previousCount: number, timeoutMs: number) {
+  try {
+    await page.waitForFunction(
+      (count) =>
+        document.querySelectorAll("#CRDPRODUTOSFRAPRODUTOS li.cardorion h5").length > count,
+      { timeout: timeoutMs },
+      previousCount
+    );
+  } catch {
+    await new Promise((resolve) => setTimeout(resolve, timeoutMs));
   }
 }
 
@@ -264,16 +334,21 @@ function getLaunchOptions(): LaunchOptions {
 }
 
 function resolveChromeExecutablePath() {
-  const candidates = [
-    process.env.PUPPETEER_EXECUTABLE_PATH,
-    "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
-    "/Applications/Chromium.app/Contents/MacOS/Chromium",
-    "/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge",
-  ].filter(Boolean) as string[];
+  try {
+    // Let Puppeteer find its own installed browser automatically
+    return puppeteer.executablePath();
+  } catch (e) {
+    const candidates = [
+      process.env.PUPPETEER_EXECUTABLE_PATH,
+      "/usr/bin/google-chrome",
+      "/usr/bin/chromium",
+      "/usr/bin/chromium-browser",
+    ].filter(Boolean) as string[];
 
-  for (const candidate of candidates) {
-    if (existsSync(candidate)) {
-      return candidate;
+    for (const candidate of candidates) {
+      if (existsSync(candidate)) {
+        return candidate;
+      }
     }
   }
 
