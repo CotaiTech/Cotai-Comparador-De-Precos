@@ -141,6 +141,15 @@ export function ProductSearch({
     });
   }
 
+  function clearSearch() {
+    setQuery("");
+    setProducts([]);
+    setError("");
+    setPage(1);
+    setTotal(0);
+    setHasMore(false);
+  }
+
   return (
     <section className="space-y-6" id="buscar">
       <div className="rounded-[32px] border border-black/5 bg-white p-5 shadow-[0_18px_45px_rgba(16,34,21,0.06)] sm:p-8">
@@ -155,15 +164,26 @@ export function ProductSearch({
             </h2>
           </div>
           <div className="relative flex flex-col gap-3 sm:flex-row">
-            <label className="flex flex-1 items-center gap-3 rounded-[24px] border border-black/8 bg-slate-50 px-5 py-4 ring-0 transition focus-within:border-emerald-300 focus-within:bg-white focus-within:shadow-lg">
+            <div className="flex flex-1 items-center gap-3 rounded-[24px] border border-black/8 bg-slate-50 px-5 py-4 ring-0 transition focus-within:border-emerald-300 focus-within:bg-white focus-within:shadow-lg">
               <Search className="h-5 w-5 text-slate-400" />
               <input
                 value={query}
                 onChange={(event) => setQuery(event.target.value)}
                 placeholder="Buscar arroz, leite, carne, refrigerante..."
+                aria-label="Buscar produtos"
                 className="w-full border-0 bg-transparent text-lg outline-none placeholder:text-slate-400"
               />
-            </label>
+              {query ? (
+                <button
+                  type="button"
+                  onClick={clearSearch}
+                  title="Limpar busca"
+                  className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white text-slate-500 transition hover:bg-slate-200 hover:text-slate-800"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              ) : null}
+            </div>
             <button
               type="button"
               onClick={() => setFiltersOpen((open) => !open)}
