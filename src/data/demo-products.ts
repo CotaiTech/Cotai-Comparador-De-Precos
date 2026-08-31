@@ -175,4 +175,18 @@ export const demoProducts: Product[] = [
     source: "mock",
     updatedAt: "2026-08-31T00:00:00.000Z",
   },
+  {
+    id: "demo-escola-peito-frango-1kg",
+    store: "escola",
+    name: "Peito de Frango 1kg",
+    normalizedName: "peito de frango 1 kg",
+    quantity: 1,
+    unit: "kg",
+    packageText: "1kg",
+    price: 18.9,
+    promotion: false,
+    available: true,
+    source: "mock",
+    updatedAt: "2026-08-31T00:00:00.000Z",
+  },
 ];

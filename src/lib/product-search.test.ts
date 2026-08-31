@@ -52,6 +52,18 @@ describe("product search", () => {
     ).toBe(leiteVicosa);
   });
 
+  it("trata categoria ampla como contexto da busca", () => {
+    const frango = product("Peito de Frango 1kg");
+
+    expect(getProductSearchScore(frango, "carne frango")).toBeGreaterThan(0);
+    expect(
+      sortProductsBySearchRelevance(
+        [product("Carne Bovina Patinho 1kg"), frango, product("Molho de Tomate 300g")],
+        "carne frango"
+      )[0]
+    ).toBe(frango);
+  });
+
   it("expõe metadados para carregar próximas páginas", () => {
     const products = [product("Leite A"), product("Leite B"), product("Leite C")];
 

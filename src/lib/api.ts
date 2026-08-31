@@ -7,6 +7,7 @@ import {
   containsAllSearchTokens,
   defaultProductSearchLimit,
   paginateProducts,
+  productSearchTokenAlternatives,
   productSearchTokens,
   sortProductsBySearchRelevance,
 } from "@/lib/product-search";
@@ -271,11 +272,11 @@ function buildTokenSearchClause(query: string): Prisma.ProductWhereInput | null 
 
   return {
     AND: tokens.map((token) => ({
-      OR: [
-        { name: { contains: token, mode: "insensitive" } },
-        { normalizedName: { contains: token, mode: "insensitive" } },
-        { brand: { contains: token, mode: "insensitive" } },
-      ],
+      OR: productSearchTokenAlternatives(token).flatMap((alternative) => [
+        { name: { contains: alternative, mode: "insensitive" } },
+        { normalizedName: { contains: alternative, mode: "insensitive" } },
+        { brand: { contains: alternative, mode: "insensitive" } },
+      ]),
     })),
   };
 }

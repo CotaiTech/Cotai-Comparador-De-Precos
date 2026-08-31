@@ -13,11 +13,35 @@ export type ProductSearchPage = {
   nextPage: number | null;
 };
 
+const searchTokenAliases: Record<string, string[]> = {
+  carne: [
+    "bovino",
+    "frango",
+    "linguica",
+    "calabresa",
+    "toscana",
+    "patinho",
+    "alcatra",
+    "musculo",
+    "costela",
+    "peito",
+    "coxa",
+    "sobrecoxa",
+    "asa",
+  ],
+  bebida: ["refrigerante", "suco", "agua", "cerveja"],
+  limpeza: ["detergente", "sabao", "desinfetante", "amaciante"],
+};
+
 export function productSearchTokens(value: string) {
   return normalizeProductName(value)
     .split(" ")
     .filter(Boolean)
     .filter((token) => !productNameStopwords.has(token));
+}
+
+export function productSearchTokenAlternatives(token: string) {
+  return [...new Set([token, ...(searchTokenAliases[token] ?? [])])];
 }
 
 function containsOrderedTokens(productTokens: string[], queryTokens: string[]) {
@@ -31,11 +55,13 @@ function containsOrderedTokens(productTokens: string[], queryTokens: string[]) {
 }
 
 export function containsAllSearchTokens(productTokens: string[], queryTokens: string[]) {
-  if (queryTokens.length === 0 || queryTokens.length > productTokens.length) {
+  if (queryTokens.length === 0 || productTokens.length === 0) {
     return false;
   }
 
-  return queryTokens.every((token) => productTokens.includes(token));
+  return queryTokens.every((token) =>
+    productTokens.some((productToken) => productSearchTokenAlternatives(token).includes(productToken))
+  );
 }
 
 function startsWithOrderedTokens(productTokens: string[], queryTokens: string[]) {
@@ -81,7 +107,10 @@ export function getProductSearchScore(product: Product, query: string) {
     score += 70;
   }
 
-  const unmatchedQueryTokens = queryTokens.filter((token) => !productTokens.includes(token));
+  const unmatchedQueryTokens = queryTokens.filter(
+    (token) =>
+      !productTokens.some((productToken) => productSearchTokenAlternatives(token).includes(productToken))
+  );
   score -= unmatchedQueryTokens.length * 120;
   score -= Math.max(0, productTokens.length - queryTokens.length) * 4;
 
