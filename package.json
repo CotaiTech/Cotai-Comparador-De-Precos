@@ -9,9 +9,11 @@
     "lint": "eslint .",
     "test": "vitest run",
     "scrape:amantino": "tsx ./scripts/scrape-amantino.ts",
+    "scrape:escola": "tsx ./scripts/scrape-escola.ts",
     "scrape:flyers": "tsx ./scripts/scrape-flyers.ts"
   },
   "dependencies": {
+    "@prisma/client": "6.19.3",
     "clsx": "^2.1.1",
     "date-fns": "^4.1.0",
     "lucide-react": "^0.542.0",
@@ -33,9 +35,16 @@
     "eslint": "^9.34.0",
     "eslint-config-next": "^15.4.6",
     "jsdom": "^26.1.0",
+    "prisma": "6.19.3",
     "tailwindcss": "^4.1.12",
     "tsx": "^4.20.5",
     "typescript": "^5.9.2",
     "vitest": "^3.2.4"
+  },
+  "allowScripts": {
+    "esbuild@0.28.2": true,
+    "puppeteer@24.43.1": true,
+    "sharp@0.34.5": true,
+    "unrs-resolver@1.12.2": true
   }
 }

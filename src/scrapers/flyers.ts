@@ -1,4 +1,5 @@
 import { extractPackaging, inferBrand, normalizeProductName } from "@/lib/normalize-product";
+import { persistScrapedProducts } from "@/lib/product-persistence";
 import { Product, StoreKey } from "@/providers/types";
 
 const BAHAMAS_FLYERS_URL = "https://bahamas.com.br/encartes/";
@@ -533,7 +534,7 @@ export async function scrapeBahamasFlyers() {
     if (products.length === 0) {
       throw new Error(`${flyers.length} encarte(s) do Bahamas foram encontrados, mas nenhum tinha texto seguro.`);
     }
-    return products;
+    return persistScrapedProducts(products);
   });
 }
 
@@ -549,7 +550,7 @@ export async function scrapeBhFlyers() {
     if (products.length === 0) {
       throw new Error(`${flyers.length} folheto(s) do BH foram encontrados, mas nenhum tinha texto seguro.`);
     }
-    return products;
+    return persistScrapedProducts(products);
   });
 }
 

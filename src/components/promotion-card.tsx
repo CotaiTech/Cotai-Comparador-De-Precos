@@ -1,4 +1,4 @@
-import { BellPlus, Flame, Plus } from "lucide-react";
+import { BellPlus, Flame, Minus, Plus } from "lucide-react";
 import { Product } from "@/providers/types";
 import { formatCurrency } from "@/lib/format";
 import { storeMeta } from "@/lib/store";
@@ -6,11 +6,22 @@ import { storeMeta } from "@/lib/store";
 type PromotionCardProps = {
   product: Product;
   onAdd: (product: Product) => void;
+  cartQuantity?: number;
+  onIncrease?: (product: Product) => void;
+  onDecrease?: (product: Product) => void;
   onTrack?: (product: Product) => void;
 };
 
-export function PromotionCard({ product, onAdd, onTrack }: PromotionCardProps) {
+export function PromotionCard({
+  product,
+  onAdd,
+  cartQuantity = 0,
+  onIncrease,
+  onDecrease,
+  onTrack,
+}: PromotionCardProps) {
   const meta = storeMeta[product.store];
+  const isInCart = cartQuantity > 0;
 
   return (
     <article className="rounded-[28px] border border-black/5 bg-white p-5 shadow-[0_18px_45px_rgba(16,34,21,0.06)]">
@@ -36,7 +47,31 @@ export function PromotionCard({ product, onAdd, onTrack }: PromotionCardProps) {
         </p>
       </div>
       <div className="mt-6 flex flex-wrap gap-2">
-        <button type="button" onClick={() => onAdd(product)} className="inline-flex items-center gap-2 rounded-2xl bg-slate-950 px-4 py-3 text-sm font-medium text-white transition hover:bg-slate-800"><Plus className="h-4 w-4" />Adicionar à lista</button>
+        {isInCart ? (
+          <div className="grid min-w-48 grid-cols-[44px_minmax(0,1fr)_44px] items-center rounded-2xl border border-black/8 bg-slate-950 p-1 text-white">
+            <button
+              type="button"
+              onClick={() => (onDecrease ?? onAdd)(product)}
+              title="Diminuir quantidade"
+              className="flex h-10 items-center justify-center rounded-xl transition hover:bg-white/10"
+            >
+              <Minus className="h-4 w-4" />
+            </button>
+            <span className="min-w-0 text-center text-sm font-semibold">
+              {cartQuantity} unidade{cartQuantity === 1 ? "" : "s"}
+            </span>
+            <button
+              type="button"
+              onClick={() => (onIncrease ?? onAdd)(product)}
+              title="Aumentar quantidade"
+              className="flex h-10 items-center justify-center rounded-xl transition hover:bg-white/10"
+            >
+              <Plus className="h-4 w-4" />
+            </button>
+          </div>
+        ) : (
+          <button type="button" onClick={() => onAdd(product)} className="inline-flex items-center gap-2 rounded-2xl bg-slate-950 px-4 py-3 text-sm font-medium text-white transition hover:bg-slate-800"><Plus className="h-4 w-4" />Adicionar à lista</button>
+        )}
         {onTrack ? <button type="button" onClick={() => onTrack(product)} title="Acompanhar no Radar" className="rounded-2xl bg-emerald-50 p-3 text-emerald-700 transition hover:bg-emerald-100"><BellPlus className="h-4 w-4" /></button> : null}
       </div>
     </article>

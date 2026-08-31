@@ -1,9 +1,6 @@
-import { mockProducts } from "@/data/mock-catalog";
 import { normalizeProductName } from "@/lib/normalize-product";
 import { Product, StoreProvider } from "@/providers/types";
 import { scrapeBhFlyers } from "@/scrapers/flyers";
-
-const fallbackProducts = mockProducts.filter((product) => product.store === "bh");
 
 export class BhProvider implements StoreProvider {
   readonly store = "bh" as const;
@@ -14,20 +11,17 @@ export class BhProvider implements StoreProvider {
     const normalized = normalizeProductName(query);
     const live = await this.getLiveProducts();
     const liveResults = live.filter((product) => product.normalizedName.includes(normalized));
-    const fallbackResults = fallbackProducts.filter((product) =>
-      product.normalizedName.includes(normalized)
-    );
-    return dedupe([...liveResults, ...fallbackResults]);
+    return dedupe(liveResults);
   }
 
   async getProducts(): Promise<Product[]> {
     const live = await this.getLiveProducts();
-    return dedupe([...live, ...fallbackProducts]);
+    return dedupe(live);
   }
 
   async getPromotions(): Promise<Product[]> {
     const live = await this.getLiveProducts();
-    return live.length > 0 ? live : fallbackProducts.filter((product) => product.promotion);
+    return live.filter((product) => product.promotion);
   }
 
   private async getLiveProducts() {

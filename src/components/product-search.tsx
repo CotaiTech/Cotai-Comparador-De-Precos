@@ -7,11 +7,21 @@ import { ProductCard } from "@/components/product-card";
 
 type ProductSearchProps = {
   onAdd: (product: Product) => void;
+  getCartQuantity?: (product: Product) => number;
+  onIncrease?: (product: Product) => void;
+  onDecrease?: (product: Product) => void;
   initialQuery?: string;
   onTrack?: (product: Product) => void;
 };
 
-export function ProductSearch({ onAdd, initialQuery = "", onTrack }: ProductSearchProps) {
+export function ProductSearch({
+  onAdd,
+  getCartQuantity,
+  onIncrease,
+  onDecrease,
+  initialQuery = "",
+  onTrack,
+}: ProductSearchProps) {
   const [query, setQuery] = useState(initialQuery);
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(false);
@@ -98,7 +108,15 @@ export function ProductSearch({ onAdd, initialQuery = "", onTrack }: ProductSear
       {products.length > 0 ? (
         <div className="grid gap-4 md:grid-cols-2">
           {products.map((product) => (
-            <ProductCard key={product.id} product={product} onAdd={onAdd} onTrack={onTrack} />
+            <ProductCard
+              key={product.id}
+              product={product}
+              onAdd={onAdd}
+              cartQuantity={getCartQuantity?.(product) ?? 0}
+              onIncrease={onIncrease}
+              onDecrease={onDecrease}
+              onTrack={onTrack}
+            />
           ))}
         </div>
       ) : null}

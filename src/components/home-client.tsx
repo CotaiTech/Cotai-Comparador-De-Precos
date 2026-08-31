@@ -96,6 +96,32 @@ export function HomeClient({
     });
   }
 
+  function getCartQuantity(product: Product) {
+    return cart.find((item) => item.query === product.name)?.quantity ?? 0;
+  }
+
+  function increaseProductQuantity(product: Product) {
+    handleAdd(product);
+  }
+
+  function decreaseProductQuantity(product: Product) {
+    setCart((current) => {
+      const existing = current.find((item) => item.query === product.name);
+
+      if (!existing) {
+        return current;
+      }
+
+      if (existing.quantity <= 1) {
+        return current.filter((item) => item.id !== existing.id);
+      }
+
+      return current.map((item) =>
+        item.id === existing.id ? { ...item, quantity: item.quantity - 1 } : item
+      );
+    });
+  }
+
   async function handleTrack(product: Product) {
     if (!user) {
       window.location.href = "/login";
@@ -203,7 +229,15 @@ export function HomeClient({
         <section className="grid gap-8 lg:grid-cols-[1.15fr_0.85fr]">
           {!promotionsOnly ? (
             <div className="space-y-8">
-              {!compareOnly ? <ProductSearch onAdd={handleAdd} onTrack={handleTrack} /> : null}
+              {!compareOnly ? (
+                <ProductSearch
+                  onAdd={handleAdd}
+                  getCartQuantity={getCartQuantity}
+                  onIncrease={increaseProductQuantity}
+                  onDecrease={decreaseProductQuantity}
+                  onTrack={handleTrack}
+                />
+              ) : null}
               {comparisonError ? (
                 <p className="rounded-2xl bg-orange-50 px-4 py-3 text-sm text-orange-700">{comparisonError}</p>
               ) : null}
@@ -241,7 +275,15 @@ export function HomeClient({
           ) : (
             <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
               {promotions.filter((product) => !user || matchesDietPreference(product, user.profile.dietPreference)).slice(0, 6).map((product) => (
-                <PromotionCard key={product.id} product={product} onAdd={handleAdd} onTrack={handleTrack} />
+                <PromotionCard
+                  key={product.id}
+                  product={product}
+                  onAdd={handleAdd}
+                  cartQuantity={getCartQuantity(product)}
+                  onIncrease={increaseProductQuantity}
+                  onDecrease={decreaseProductQuantity}
+                  onTrack={handleTrack}
+                />
               ))}
             </div>
           )}
