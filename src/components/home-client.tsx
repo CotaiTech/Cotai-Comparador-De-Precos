@@ -202,7 +202,7 @@ export function HomeClient({
 
             <div className="rounded-[36px] border border-black/5 bg-white p-6 shadow-[0_18px_45px_rgba(16,34,21,0.08)]">
               <div className="rounded-[28px] bg-gradient-to-br from-emerald-500 to-emerald-700 p-6 text-white">
-                <p className="text-sm uppercase tracking-[0.24em] text-emerald-100">Fluxo principal</p>
+                <p className="text-sm uppercase tracking-[0.24em] text-emerald-100">Como funciona</p>
                 <div className="mt-6 space-y-4">
                   {[
                     "Pesquise produtos",
