@@ -1,7 +1,14 @@
 "use client";
 
 import { useState } from "react";
-import { BrainCircuit, FileCheck2, LoaderCircle, Trophy } from "lucide-react";
+import {
+  AlertTriangle,
+  BrainCircuit,
+  CheckCircle2,
+  FileCheck2,
+  LoaderCircle,
+  Trophy,
+} from "lucide-react";
 import { useRouter } from "next/navigation";
 import { CompareResult, PurchaseOptionSelection } from "@/lib/compare-cart";
 import { formatCurrency } from "@/lib/format";
@@ -25,6 +32,14 @@ export function ComparisonResult({ result, user }: ComparisonResultProps) {
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState("");
   const router = useRouter();
+  const selectedTotal = selectedOption.total;
+  const selectedIsOptimized = selectedOption.id === "optimized";
+
+  function missingItemsForStore(store: (typeof storeKeys)[number]) {
+    return result.lines
+      .filter((line) => !line.stores[store].found)
+      .map((line) => line.query);
+  }
 
   async function savePlanning() {
     if (!user) { router.push("/login"); return; }
@@ -39,75 +54,79 @@ export function ComparisonResult({ result, user }: ComparisonResultProps) {
 
   return (
     <section className="space-y-6" id="comparacao">
-      <div className="grid gap-4 lg:grid-cols-[1.2fr_0.8fr]">
-        <div className="rounded-[32px] border border-black/5 bg-white p-6 shadow-[0_18px_45px_rgba(16,34,21,0.06)]">
-          <p className="text-sm font-medium uppercase tracking-[0.2em] text-slate-400">Sua compra</p>
-          <div className="mt-4 grid gap-4 md:grid-cols-2">
-            {storeKeys.map((store) => {
-              const summary = result.stores[store];
-              const meta = storeMeta[store];
-              const selected = selectedOption.id === `single-${store}`;
-              return (
-                <button
-                  key={store}
-                  type="button"
-                  onClick={() =>
-                    summary.complete &&
-                    setSelectedOption({
-                      id: `single-${store}`,
-                      type: "single-store",
-                      label: `Compra completa em ${meta.label}`,
-                      store,
-                      total: summary.total,
-                    })
-                  }
-                  disabled={!summary.complete}
-                  className={`rounded-[26px] border p-5 text-left transition ${
-                    selected
-                      ? "border-slate-950 bg-white shadow-[0_16px_34px_rgba(15,23,42,0.12)]"
-                      : `${meta.accent} ${summary.complete ? "hover:border-slate-400" : "cursor-not-allowed opacity-70"}`
-                  }`}
-                >
-                  <p className={`text-sm font-semibold ${meta.color}`}>{meta.label}</p>
-                  <p className="mt-3 text-3xl font-semibold tracking-tight text-slate-950">
-                    {formatCurrency(summary.total)}
-                  </p>
-                  <p className="mt-2 text-sm text-slate-600">
-                    {summary.foundItems} de {summary.requestedItems} produtos encontrados
-                  </p>
-                  {!summary.complete ? (
-                    <p className="mt-2 text-sm font-medium text-orange-700">
-                      Compra incompleta nesta loja
-                    </p>
-                  ) : null}
-                  {selected ? <p className="mt-3 text-xs font-semibold text-slate-950">Selecionado para salvar</p> : null}
-                </button>
-              );
-            })}
-          </div>
-        </div>
-
-        <div className="rounded-[32px] border border-emerald-200 bg-gradient-to-br from-emerald-500 to-emerald-700 p-6 text-white shadow-[0_18px_45px_rgba(22,101,52,0.22)]">
-          <div className="flex items-center gap-3">
-            <div className="rounded-2xl bg-white/15 p-3">
-              <Trophy className="h-5 w-5" />
+      <div className="rounded-[32px] border border-black/5 bg-white p-5 shadow-[0_18px_45px_rgba(16,34,21,0.06)] sm:p-6">
+        <div className="grid gap-4 lg:grid-cols-[1fr_0.85fr_0.85fr]">
+          <div className="rounded-[24px] border border-slate-950 bg-slate-950 p-5 text-white">
+            <div className="flex items-center gap-3">
+              <div className="rounded-2xl bg-white/10 p-3">
+                <CheckCircle2 className="h-5 w-5" />
+              </div>
+              <div>
+                <p className="text-sm text-slate-300">Opção escolhida</p>
+                <h3 className="text-xl font-semibold tracking-tight">{selectedOption.label}</h3>
+              </div>
             </div>
-            <div>
-              <p className="text-sm text-emerald-100">Melhor opção</p>
-              <h3 className="text-2xl font-semibold tracking-tight">
-                {result.winner.store ? storeMeta[result.winner.store].label : "Sem vencedor"}
-              </h3>
-            </div>
+            <p className="mt-5 text-4xl font-semibold tracking-tight">
+              {formatCurrency(selectedTotal)}
+            </p>
+            <p className="mt-2 text-sm text-slate-300">
+              {selectedIsOptimized
+                ? "Menor preço por produto entre as lojas disponíveis."
+                : "Esta será a opção salva no planejamento."}
+            </p>
           </div>
 
-          <p className="mt-6 text-4xl font-semibold tracking-tight">
-            {result.winner.total !== null ? formatCurrency(result.winner.total) : "Indisponível"}
-          </p>
-          <p className="mt-3 text-sm text-emerald-50">
-            {result.winner.store
-              ? `Você economiza ${formatCurrency(result.winner.savings)} (${result.winner.savingsPercentage}% mais barato).`
-              : "Nenhuma loja encontrou todos os itens da lista."}
-          </p>
+          <div className="rounded-[24px] border border-emerald-200 bg-emerald-50 p-5">
+            <div className="flex items-center gap-3">
+              <div className="rounded-2xl bg-emerald-100 p-3 text-emerald-700">
+                <Trophy className="h-5 w-5" />
+              </div>
+              <div>
+                <p className="text-sm text-emerald-700">Melhor loja completa</p>
+                <h3 className="text-xl font-semibold tracking-tight text-slate-950">
+                  {result.winner.store ? storeMeta[result.winner.store].label : "Sem vencedor"}
+                </h3>
+              </div>
+            </div>
+            <p className="mt-5 text-3xl font-semibold tracking-tight text-slate-950">
+              {result.winner.total !== null ? formatCurrency(result.winner.total) : "Indisponível"}
+            </p>
+            <p className="mt-2 text-sm text-emerald-800">
+              {result.winner.store
+                ? `Economia: ${formatCurrency(result.winner.savings)} (${result.winner.savingsPercentage}%).`
+                : "Nenhuma loja encontrou todos os itens."}
+            </p>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => setSelectedOption({ id: "optimized", type: "optimized", label: "Compra otimizada", total: result.optimized.total })}
+            className={`rounded-[24px] border p-5 text-left transition ${
+              selectedOption.id === "optimized"
+                ? "border-slate-950 bg-white shadow-[0_16px_34px_rgba(15,23,42,0.12)]"
+                : "border-slate-200 bg-slate-50 hover:border-emerald-500"
+            }`}
+          >
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <p className="text-sm text-slate-500">Compra otimizada</p>
+                <h3 className="text-xl font-semibold tracking-tight text-slate-950">
+                  Melhor preço por item
+                </h3>
+              </div>
+              {selectedOption.id === "optimized" ? (
+                <CheckCircle2 className="h-5 w-5 text-slate-950" />
+              ) : null}
+            </div>
+            <p className="mt-5 text-3xl font-semibold tracking-tight text-slate-950">
+              {formatCurrency(result.optimized.total)}
+            </p>
+            <p className="mt-2 text-sm text-slate-600">
+              {result.optimized.savingsVsBestComplete > 0
+                ? `Economiza ${formatCurrency(result.optimized.savingsVsBestComplete)} vs. melhor loja completa.`
+                : "Usa os menores subtotais encontrados por produto."}
+            </p>
+          </button>
         </div>
       </div>
 
@@ -116,15 +135,86 @@ export function ComparisonResult({ result, user }: ComparisonResultProps) {
       <div className="rounded-[32px] border border-black/5 bg-white p-6 shadow-[0_18px_45px_rgba(16,34,21,0.06)]">
         <div className="flex items-center gap-3">
           <div className="rounded-2xl bg-slate-100 p-3 text-slate-700">
-            <BrainCircuit className="h-5 w-5" />
+            <Trophy className="h-5 w-5" />
           </div>
           <div>
-            <p className="text-sm text-slate-500">Compra otimizada</p>
-            <h3 className="text-2xl font-semibold tracking-tight text-slate-950">Economia máxima por produto</h3>
+            <p className="text-sm text-slate-500">Compra em uma loja</p>
+            <h3 className="text-2xl font-semibold tracking-tight text-slate-950">Totais por supermercado</h3>
           </div>
         </div>
 
-        <div className="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+        <div className="mt-6 grid gap-4 md:grid-cols-2">
+          {storeKeys.map((store) => {
+            const summary = result.stores[store];
+            const meta = storeMeta[store];
+            const selected = selectedOption.id === `single-${store}`;
+            const missingItems = missingItemsForStore(store);
+            return (
+              <button
+                key={store}
+                type="button"
+                onClick={() =>
+                  summary.complete &&
+                  setSelectedOption({
+                    id: `single-${store}`,
+                    type: "single-store",
+                    label: `Compra completa em ${meta.label}`,
+                    store,
+                    total: summary.total,
+                  })
+                }
+                disabled={!summary.complete}
+                className={`rounded-[24px] border p-5 text-left transition ${
+                  selected
+                    ? "border-slate-950 bg-white shadow-[0_16px_34px_rgba(15,23,42,0.12)]"
+                    : `${meta.accent} ${summary.complete ? "hover:border-slate-400" : "cursor-not-allowed opacity-80"}`
+                }`}
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <p className={`text-sm font-semibold ${meta.color}`}>{meta.label}</p>
+                    <p className="mt-3 text-3xl font-semibold tracking-tight text-slate-950">
+                      {formatCurrency(summary.total)}
+                    </p>
+                  </div>
+                  {selected ? <CheckCircle2 className="h-5 w-5 text-slate-950" /> : null}
+                </div>
+                <p className="mt-2 text-sm text-slate-600">
+                  {summary.foundItems} de {summary.requestedItems} produtos encontrados
+                </p>
+                {!summary.complete ? (
+                  <div className="mt-3 rounded-2xl bg-orange-50 px-3 py-2 text-sm text-orange-800">
+                    <div className="flex items-center gap-2 font-medium">
+                      <AlertTriangle className="h-4 w-4" />
+                      Faltam {summary.missingItems} item(ns)
+                    </div>
+                    <p className="mt-1 text-xs leading-5">
+                      {missingItems.slice(0, 3).join(", ")}
+                      {missingItems.length > 3 ? ` +${missingItems.length - 3}` : ""}
+                    </p>
+                  </div>
+                ) : (
+                  <p className="mt-3 text-sm font-medium text-emerald-700">Compra completa</p>
+                )}
+                {selected ? <p className="mt-3 text-xs font-semibold text-slate-950">Selecionado para salvar</p> : null}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      <div className="rounded-[32px] border border-black/5 bg-white p-6 shadow-[0_18px_45px_rgba(16,34,21,0.06)]">
+        <div className="flex items-center gap-3">
+          <div className="rounded-2xl bg-slate-100 p-3 text-slate-700">
+            <BrainCircuit className="h-5 w-5" />
+          </div>
+          <div>
+            <p className="text-sm text-slate-500">Distribuição otimizada</p>
+            <h3 className="text-2xl font-semibold tracking-tight text-slate-950">Onde comprar cada grupo</h3>
+          </div>
+        </div>
+
+        <div className="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
           {storeKeys.map((store) => (
             <div key={store} className="rounded-[24px] bg-slate-50 p-5">
               <p className="font-semibold text-slate-900">{storeMeta[store].label}</p>
@@ -136,25 +226,6 @@ export function ComparisonResult({ result, user }: ComparisonResultProps) {
               </p>
             </div>
           ))}
-
-          <button
-            type="button"
-            onClick={() => setSelectedOption({ id: "optimized", type: "optimized", label: "Compra otimizada", total: result.optimized.total })}
-            className={`rounded-[24px] border p-5 text-left transition md:col-span-2 xl:col-span-1 ${
-              selectedOption.id === "optimized"
-                ? "border-slate-950 bg-white shadow-[0_16px_34px_rgba(15,23,42,0.12)]"
-                : "border-emerald-200 bg-emerald-50 hover:border-emerald-500"
-            }`}
-          >
-            <p className="font-semibold text-emerald-700">Total otimizado</p>
-            <p className="mt-3 text-4xl font-semibold tracking-tight text-slate-950">
-              {formatCurrency(result.optimized.total)}
-            </p>
-            <p className="mt-2 text-sm text-emerald-800">
-              Economia máxima: {formatCurrency(Math.max(result.optimized.savingsVsBestComplete, 0))}
-            </p>
-            {selectedOption.id === "optimized" ? <p className="mt-3 text-xs font-semibold text-slate-950">Selecionado para salvar</p> : null}
-          </button>
         </div>
       </div>
 
