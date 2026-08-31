@@ -142,15 +142,21 @@ export function getProductSearchScore(product: Product, query: string) {
 }
 
 export function sortProductsBySearchRelevance(products: Product[], query: string) {
-  return [...products].sort((left, right) => {
-    const scoreDifference = getProductSearchScore(right, query) - getProductSearchScore(left, query);
+  return products
+    .map((product) => ({
+      product,
+      score: getProductSearchScore(product, query),
+    }))
+    .sort((left, right) => {
+      const scoreDifference = right.score - left.score;
 
-    if (scoreDifference !== 0) {
-      return scoreDifference;
-    }
+      if (scoreDifference !== 0) {
+        return scoreDifference;
+      }
 
-    return left.name.localeCompare(right.name, "pt-BR", { sensitivity: "base" });
-  });
+      return left.product.name.localeCompare(right.product.name, "pt-BR", { sensitivity: "base" });
+    })
+    .map(({ product }) => product);
 }
 
 export function paginateProducts(
