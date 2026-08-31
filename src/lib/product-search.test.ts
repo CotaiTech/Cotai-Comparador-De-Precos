@@ -64,6 +64,30 @@ describe("product search", () => {
     ).toBe(frango);
   });
 
+  it("encontra cortes de frango mesmo quando a palavra frango nao aparece no nome", () => {
+    const corteDeFrango = product("Coxa Sobrecoxa Congelada 1kg");
+
+    expect(getProductSearchScore(corteDeFrango, "carne frango")).toBeGreaterThan(0);
+    expect(
+      sortProductsBySearchRelevance(
+        [product("Carne Bovina Patinho 1kg"), corteDeFrango, product("Molho de Tomate 300g")],
+        "carne frango"
+      )[0]
+    ).toBe(corteDeFrango);
+  });
+
+  it("usa termos equivalentes de categoria para buscar produtos", () => {
+    const mussarela = product("Mussarela Fatiada 500g");
+
+    expect(getProductSearchScore(mussarela, "queijo")).toBeGreaterThan(0);
+    expect(
+      sortProductsBySearchRelevance(
+        [product("Biscoito de Leite 400g"), mussarela],
+        "queijo"
+      )[0]
+    ).toBe(mussarela);
+  });
+
   it("expõe metadados para carregar próximas páginas", () => {
     const products = [product("Leite A"), product("Leite B"), product("Leite C")];
 

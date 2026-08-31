@@ -1,11 +1,12 @@
 import { Product } from "@/providers/types";
 import {
-  classifyProduct,
+  classifyProductCategories,
   extractPackaging,
   getNormalizedProductName,
   inferBrand,
   normalizeProductName,
   normalizeProductNameForMatching,
+  productCategoriesOverlap,
   toComparableAmount,
   tokenizeProductName,
 } from "@/lib/normalize-product";
@@ -170,13 +171,13 @@ export function calculateProductSimilarity(query: string, product: Product) {
     incompatiblePackaging = true;
   }
 
-  const queryCategory = classifyProduct(query);
-  const productCategory = classifyProduct(product.name);
+  const queryCategories = classifyProductCategories(query);
+  const productCategories = classifyProductCategories(product.name);
+  const categoryAligned = productCategoriesOverlap(queryCategories, productCategories);
   const categoryConflict =
-    Boolean(queryCategory) && Boolean(productCategory) && queryCategory !== productCategory;
+    queryCategories.length > 0 && productCategories.length > 0 && !categoryAligned;
   const categoryScore =
-    !queryCategory || !productCategory ? 0.5 : queryCategory === productCategory ? 1 : 0;
-  const categoryAligned = Boolean(queryCategory) && Boolean(productCategory) && queryCategory === productCategory;
+    queryCategories.length === 0 || productCategories.length === 0 ? 0.5 : categoryAligned ? 1 : 0;
 
   const queryBrand = inferBrand(query);
   const productBrand = product.brand ? normalizeProductName(product.brand) : undefined;
@@ -202,7 +203,8 @@ export function calculateProductSimilarity(query: string, product: Product) {
     anchorScore * 0.15 +
     packagingScore * 0.25 +
     brandScore * 0.05 +
-    categoryScore * 0.1;
+    categoryScore * 0.1 +
+    (categoryAligned ? 0.05 : 0);
 
   return Number(score.toFixed(4));
 }

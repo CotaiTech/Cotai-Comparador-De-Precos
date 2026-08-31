@@ -1,4 +1,9 @@
-import { normalizeProductName, productNameStopwords } from "@/lib/normalize-product";
+import {
+  classifyProductCategories,
+  normalizeProductName,
+  productCategoriesOverlap,
+  productNameStopwords,
+} from "@/lib/normalize-product";
 import { Product } from "@/providers/types";
 
 export const defaultProductSearchLimit = 32;
@@ -28,8 +33,16 @@ const searchTokenAliases: Record<string, string[]> = {
     "coxa",
     "sobrecoxa",
     "asa",
+    "file",
+    "sassami",
   ],
+  frango: ["peito", "coxa", "sobrecoxa", "asa", "file", "sassami"],
+  bovino: ["carne", "patinho", "alcatra", "musculo", "costela"],
+  linguica: ["calabresa", "toscana"],
   bebida: ["refrigerante", "suco", "agua", "cerveja"],
+  queijo: ["mussarela", "muçarela", "requeijao"],
+  frios: ["queijo", "mussarela", "muçarela", "presunto", "mortadela"],
+  laticinio: ["leite", "manteiga", "queijo", "requeijao", "iogurte"],
   limpeza: ["detergente", "sabao", "desinfetante", "amaciante"],
 };
 
@@ -41,7 +54,7 @@ export function productSearchTokens(value: string) {
 }
 
 export function productSearchTokenAlternatives(token: string) {
-  return [...new Set([token, ...(searchTokenAliases[token] ?? [])])];
+  return [...new Set([token, ...(searchTokenAliases[token] ?? [])].map(normalizeProductName))];
 }
 
 function containsOrderedTokens(productTokens: string[], queryTokens: string[]) {
@@ -74,6 +87,9 @@ export function getProductSearchScore(product: Product, query: string) {
   const normalizedBrand = product.brand ? normalizeProductName(product.brand) : "";
   const productTokens = productSearchTokens(normalizedName);
   const queryTokens = productSearchTokens(normalizedQuery);
+  const queryCategories = classifyProductCategories(query);
+  const productCategories = classifyProductCategories(product.name);
+  const categoryAligned = productCategoriesOverlap(queryCategories, productCategories);
 
   let score = 0;
 
@@ -105,6 +121,10 @@ export function getProductSearchScore(product: Product, query: string) {
     score += 140;
   } else if (normalizedBrand.includes(normalizedQuery)) {
     score += 70;
+  }
+
+  if (categoryAligned) {
+    score += 120;
   }
 
   const unmatchedQueryTokens = queryTokens.filter(
