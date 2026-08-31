@@ -18,7 +18,7 @@ type ScrapeEscolaOptions = {
 
 const ESCOLA_BASE_URL = "https://supermercadoescola.org.br";
 const PAGE_DELAY_MS = 500;
-const DEFAULT_CATEGORY_CONCURRENCY = 2;
+const DEFAULT_CATEGORY_CONCURRENCY = 1;
 const MAX_SAFETY_PAGES = 200;
 const DEFAULT_CATEGORY_URLS = [
   `${ESCOLA_BASE_URL}/categoria/a-cougue`,

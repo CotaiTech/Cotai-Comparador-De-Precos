@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { BrainCircuit, FileCheck2, LoaderCircle, Trophy } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { CompareResult } from "@/lib/compare-cart";
+import { CompareResult, PurchaseOptionSelection } from "@/lib/compare-cart";
 import { formatCurrency } from "@/lib/format";
 import { storeKeys, storeMeta } from "@/lib/store";
 import { AccountUser } from "@/lib/account-types";
@@ -16,6 +16,12 @@ type ComparisonResultProps = {
 
 export function ComparisonResult({ result, user }: ComparisonResultProps) {
   const [planningName, setPlanningName] = useState(`Compra de insumos - ${new Date().toLocaleDateString("pt-BR")}`);
+  const [selectedOption, setSelectedOption] = useState<PurchaseOptionSelection>({
+    id: "optimized",
+    type: "optimized",
+    label: "Compra otimizada",
+    total: result.optimized.total,
+  });
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState("");
   const router = useRouter();
@@ -24,7 +30,7 @@ export function ComparisonResult({ result, user }: ComparisonResultProps) {
     if (!user) { router.push("/login"); return; }
     setSaving(true);
     setSaveError("");
-    const response = await fetch("/api/plannings", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name: planningName, items: result.lines.map((line) => ({ query: line.query, quantity: line.quantity })), result }) });
+    const response = await fetch("/api/plannings", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name: planningName, items: result.lines.map((line) => ({ query: line.query, quantity: line.quantity })), result: { ...result, selectedOption } }) });
     const data = (await response.json()) as { planning?: { id: string }; message?: string };
     setSaving(false);
     if (!response.ok || !data.planning) { setSaveError(data.message ?? "Não foi possível salvar o planejamento."); return; }
@@ -40,8 +46,28 @@ export function ComparisonResult({ result, user }: ComparisonResultProps) {
             {storeKeys.map((store) => {
               const summary = result.stores[store];
               const meta = storeMeta[store];
+              const selected = selectedOption.id === `single-${store}`;
               return (
-                <div key={store} className={`rounded-[26px] border p-5 ${meta.accent}`}>
+                <button
+                  key={store}
+                  type="button"
+                  onClick={() =>
+                    summary.complete &&
+                    setSelectedOption({
+                      id: `single-${store}`,
+                      type: "single-store",
+                      label: `Compra completa em ${meta.label}`,
+                      store,
+                      total: summary.total,
+                    })
+                  }
+                  disabled={!summary.complete}
+                  className={`rounded-[26px] border p-5 text-left transition ${
+                    selected
+                      ? "border-slate-950 bg-white shadow-[0_16px_34px_rgba(15,23,42,0.12)]"
+                      : `${meta.accent} ${summary.complete ? "hover:border-slate-400" : "cursor-not-allowed opacity-70"}`
+                  }`}
+                >
                   <p className={`text-sm font-semibold ${meta.color}`}>{meta.label}</p>
                   <p className="mt-3 text-3xl font-semibold tracking-tight text-slate-950">
                     {formatCurrency(summary.total)}
@@ -54,7 +80,8 @@ export function ComparisonResult({ result, user }: ComparisonResultProps) {
                       Compra incompleta nesta loja
                     </p>
                   ) : null}
-                </div>
+                  {selected ? <p className="mt-3 text-xs font-semibold text-slate-950">Selecionado para salvar</p> : null}
+                </button>
               );
             })}
           </div>
@@ -68,7 +95,7 @@ export function ComparisonResult({ result, user }: ComparisonResultProps) {
             <div>
               <p className="text-sm text-emerald-100">Melhor opção</p>
               <h3 className="text-2xl font-semibold tracking-tight">
-                {result.winner.store ? storeMeta[result.winner.store].label : "Sem vencedor da compra completa"}
+                {result.winner.store ? storeMeta[result.winner.store].label : "Sem vencedor"}
               </h3>
             </div>
           </div>
@@ -79,12 +106,12 @@ export function ComparisonResult({ result, user }: ComparisonResultProps) {
           <p className="mt-3 text-sm text-emerald-50">
             {result.winner.store
               ? `Você economiza ${formatCurrency(result.winner.savings)} (${result.winner.savingsPercentage}% mais barato).`
-              : "Algumas lojas não encontraram todos os itens, então não declaramos vencedor da compra completa."}
+              : "Nenhuma loja encontrou todos os itens da lista."}
           </p>
         </div>
       </div>
 
-      {user ? <RouteScenarios result={result} profile={user.profile} /> : <div className="rounded-[28px] border border-dashed border-emerald-300 bg-emerald-50/60 p-6"><h3 className="font-semibold text-emerald-900">Calcule o custo do deslocamento</h3><p className="mt-2 text-sm text-emerald-800">Entre na sua conta e informe as distâncias para comparar compra, combustível e tempo de rota.</p></div>}
+      {user ? <RouteScenarios result={result} profile={user.profile} selectedOptionId={selectedOption.id} onSelect={setSelectedOption} /> : <div className="rounded-[28px] border border-dashed border-emerald-300 bg-emerald-50/60 p-6"><h3 className="font-semibold text-emerald-900">Calcule o custo do deslocamento</h3><p className="mt-2 text-sm text-emerald-800">Entre na sua conta e informe as distâncias para comparar compra, combustível e tempo de rota.</p></div>}
 
       <div className="rounded-[32px] border border-black/5 bg-white p-6 shadow-[0_18px_45px_rgba(16,34,21,0.06)]">
         <div className="flex items-center gap-3">
@@ -110,7 +137,15 @@ export function ComparisonResult({ result, user }: ComparisonResultProps) {
             </div>
           ))}
 
-          <div className="rounded-[24px] border border-emerald-200 bg-emerald-50 p-5 md:col-span-2 xl:col-span-1">
+          <button
+            type="button"
+            onClick={() => setSelectedOption({ id: "optimized", type: "optimized", label: "Compra otimizada", total: result.optimized.total })}
+            className={`rounded-[24px] border p-5 text-left transition md:col-span-2 xl:col-span-1 ${
+              selectedOption.id === "optimized"
+                ? "border-slate-950 bg-white shadow-[0_16px_34px_rgba(15,23,42,0.12)]"
+                : "border-emerald-200 bg-emerald-50 hover:border-emerald-500"
+            }`}
+          >
             <p className="font-semibold text-emerald-700">Total otimizado</p>
             <p className="mt-3 text-4xl font-semibold tracking-tight text-slate-950">
               {formatCurrency(result.optimized.total)}
@@ -118,7 +153,8 @@ export function ComparisonResult({ result, user }: ComparisonResultProps) {
             <p className="mt-2 text-sm text-emerald-800">
               Economia máxima: {formatCurrency(Math.max(result.optimized.savingsVsBestComplete, 0))}
             </p>
-          </div>
+            {selectedOption.id === "optimized" ? <p className="mt-3 text-xs font-semibold text-slate-950">Selecionado para salvar</p> : null}
+          </button>
         </div>
       </div>
 
@@ -173,7 +209,7 @@ export function ComparisonResult({ result, user }: ComparisonResultProps) {
       </div>
 
       <div className="rounded-[32px] bg-slate-950 p-6 text-white shadow-xl">
-        <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between"><div className="max-w-xl"><p className="text-sm font-medium uppercase tracking-[0.2em] text-emerald-300">Concluir planejamento</p><h3 className="mt-2 text-2xl font-semibold">Salve esta compra e acompanhe sua economia.</h3><p className="mt-2 text-sm text-slate-300">Isso não realiza pedidos nem pagamentos. O CotaÍ registra somente o planejamento.</p></div><div className="flex w-full flex-col gap-3 sm:flex-row lg:max-w-xl"><input value={planningName} onChange={(event) => setPlanningName(event.target.value)} className="min-w-0 flex-1 rounded-2xl border border-white/10 bg-white/10 px-4 py-3 outline-none focus:border-emerald-400" /><button onClick={savePlanning} disabled={saving || planningName.trim().length < 2} className="inline-flex items-center justify-center gap-2 rounded-2xl bg-emerald-500 px-5 py-3 font-semibold text-white hover:bg-emerald-400 disabled:opacity-60">{saving ? <LoaderCircle className="h-5 w-5 animate-spin" /> : <><FileCheck2 className="h-5 w-5" />{user ? "Concluir e gerar relatório" : "Entrar para salvar"}</>}</button></div></div>
+        <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between"><div className="max-w-xl"><p className="text-sm font-medium uppercase tracking-[0.2em] text-emerald-300">Concluir planejamento</p><h3 className="mt-2 text-2xl font-semibold">Salve esta compra e acompanhe sua economia.</h3><p className="mt-2 text-sm text-slate-300">Opção escolhida: {selectedOption.label}. Isso não realiza pedidos nem pagamentos.</p></div><div className="flex w-full flex-col gap-3 sm:flex-row lg:max-w-xl"><input value={planningName} onChange={(event) => setPlanningName(event.target.value)} className="min-w-0 flex-1 rounded-2xl border border-white/10 bg-white/10 px-4 py-3 outline-none focus:border-emerald-400" /><button onClick={savePlanning} disabled={saving || planningName.trim().length < 2} className="inline-flex items-center justify-center gap-2 rounded-2xl bg-emerald-500 px-5 py-3 font-semibold text-white hover:bg-emerald-400 disabled:opacity-60">{saving ? <LoaderCircle className="h-5 w-5 animate-spin" /> : <><FileCheck2 className="h-5 w-5" />{user ? "Concluir e gerar relatório" : "Entrar para salvar"}</>}</button></div></div>
         {saveError ? <p className="mt-4 text-sm text-orange-300">{saveError}</p> : null}
       </div>
     </section>

@@ -1,7 +1,15 @@
 import { Prisma, ProductSource, ProductUnit } from "@prisma/client";
+import { demoProducts } from "@/data/demo-products";
 import { compareCart } from "@/lib/compare-cart";
 import db from "@/lib/db";
 import { normalizeProductName } from "@/lib/normalize-product";
+import {
+  containsAllSearchTokens,
+  defaultProductSearchLimit,
+  paginateProducts,
+  productSearchTokens,
+  sortProductsBySearchRelevance,
+} from "@/lib/product-search";
 import { storeKeys } from "@/lib/store";
 import { Product, ProductUnit as ApiProductUnit, StoreKey } from "@/providers/types";
 
@@ -24,6 +32,11 @@ const promotionWithRelations = Prisma.validator<Prisma.PromotionDefaultArgs>()({
 
 type ProductWithLatestPrice = Prisma.ProductGetPayload<typeof productWithLatestPrice>;
 type PromotionWithRelations = Prisma.PromotionGetPayload<typeof promotionWithRelations>;
+type ProductSearchOptions = { page?: number; limit?: number; stores?: StoreKey[] };
+
+function hasDatabaseConfig() {
+  return Boolean(process.env.DATABASE_URL);
+}
 
 const unitMap: Record<ProductUnit, ApiProductUnit> = {
   GRAM: "g",
@@ -103,29 +116,49 @@ function promotionToApiProduct(row: PromotionWithRelations): Product | null {
 }
 
 export async function searchAllStores(query: string) {
+  const result = await searchProductsPage(query);
+  return result.products;
+}
+
+export async function searchProductsPage(
+  query: string,
+  options: ProductSearchOptions = {}
+) {
+  if (!hasDatabaseConfig()) {
+    return searchDemoProductsPage(query, options);
+  }
+
   const normalizedQuery = normalizeProductName(query);
+  const stores = normalizeStoreFilter(options.stores);
 
-  const products = await db.product.findMany({
-    where: {
-      available: true,
-      OR: [
-        { name: { contains: query, mode: "insensitive" } },
-        { normalizedName: { contains: normalizedQuery, mode: "insensitive" } },
-        { brand: { contains: query, mode: "insensitive" } },
-      ],
-    },
-    orderBy: { name: "asc" },
-    take: 32,
-    ...productWithLatestPrice,
-  });
+  try {
+    const products = await db.product.findMany({
+      where: buildProductSearchWhere(query, stores),
+      orderBy: { name: "asc" },
+      ...productWithLatestPriceForStores(stores),
+    });
 
-  return products.flatMap((product) => {
-    const mapped = toApiProduct(product);
-    return mapped ? [mapped] : [];
-  });
+    const mappedProducts = products.flatMap((product) => {
+      const mapped = toApiProduct(product);
+      return mapped ? [mapped] : [];
+    });
+
+    return paginateProducts(
+      sortProductsBySearchRelevance(mappedProducts, query),
+      options.page ?? 1,
+      options.limit ?? defaultProductSearchLimit
+    );
+  } catch (error) {
+    console.error("Falling back to demo product search:", error);
+    return searchDemoProductsPage(query, options);
+  }
 }
 
 export async function getAllPromotions() {
+  if (!hasDatabaseConfig()) {
+    return demoProducts.filter((product) => product.available && product.promotion);
+  }
+
   const promotions = await db.promotion.findMany({
     where: {
       active: true,
@@ -143,12 +176,54 @@ export async function getAllPromotions() {
 }
 
 export async function compareQueries(items: Array<{ query: string; quantity: number }>) {
+  if (!hasDatabaseConfig()) {
+    return compareCartWithProducts(items, demoProducts);
+  }
+
   const products = await db.product.findMany({
-    where: { available: true },
+    where: buildProductSearchWhereForQueries(items.map((item) => item.query), storeKeys),
     orderBy: { name: "asc" },
-    ...productWithLatestPrice,
+    ...productWithLatestPriceForStores(storeKeys),
   });
 
+  const mappedProducts = products.flatMap((product) => {
+    const mapped = toApiProduct(product);
+    return mapped ? [mapped] : [];
+  });
+
+  return compareCartWithProducts(items, mappedProducts);
+}
+
+function searchDemoProductsPage(
+  query: string,
+  options: ProductSearchOptions = {}
+) {
+  const normalizedQuery = normalizeProductName(query);
+  const queryTokens = productSearchTokens(query);
+  const stores = normalizeStoreFilter(options.stores);
+  const products = demoProducts.filter(
+    (product) => {
+      const productTokens = productSearchTokens(product.normalizedName || product.name);
+
+      return (
+        product.available &&
+        stores.includes(product.store) &&
+        (normalizeProductName(product.name).includes(normalizedQuery) ||
+          normalizeProductName(product.normalizedName).includes(normalizedQuery) ||
+          normalizeProductName(product.brand ?? "").includes(normalizedQuery) ||
+          containsAllSearchTokens(productTokens, queryTokens))
+      );
+    }
+  );
+
+  return paginateProducts(
+    sortProductsBySearchRelevance(products, query),
+    options.page ?? 1,
+    options.limit ?? defaultProductSearchLimit
+  );
+}
+
+function compareCartWithProducts(items: Array<{ query: string; quantity: number }>, products: Product[]) {
   const productsByStore = storeKeys.reduce(
     (acc, store) => {
       acc[store] = [];
@@ -158,11 +233,78 @@ export async function compareQueries(items: Array<{ query: string; quantity: num
   );
 
   for (const product of products) {
-    const mapped = toApiProduct(product);
-    if (mapped) {
-      productsByStore[mapped.store].push(mapped);
-    }
+    productsByStore[product.store].push(product);
   }
 
   return compareCart(items, productsByStore);
+}
+
+function normalizeStoreFilter(stores?: StoreKey[]) {
+  const selectedStores = (stores ?? storeKeys).filter((store, index, values) =>
+    storeKeys.includes(store) && values.indexOf(store) === index
+  );
+
+  return selectedStores.length > 0 ? selectedStores : [...storeKeys];
+}
+
+function productWithLatestPriceForStores(stores: readonly StoreKey[]) {
+  const storeList = [...stores];
+
+  return Prisma.validator<Prisma.ProductDefaultArgs>()({
+    include: {
+      priceHistory: {
+        where: { store: { is: { key: { in: storeList } } } },
+        orderBy: { observedAt: "desc" },
+        take: 1,
+        include: { store: true },
+      },
+    },
+  });
+}
+
+function buildTokenSearchClause(query: string): Prisma.ProductWhereInput | null {
+  const tokens = productSearchTokens(query);
+
+  if (tokens.length === 0) {
+    return null;
+  }
+
+  return {
+    AND: tokens.map((token) => ({
+      OR: [
+        { name: { contains: token, mode: "insensitive" } },
+        { normalizedName: { contains: token, mode: "insensitive" } },
+        { brand: { contains: token, mode: "insensitive" } },
+      ],
+    })),
+  };
+}
+
+function buildProductSearchWhere(query: string, stores: readonly StoreKey[]): Prisma.ProductWhereInput {
+  const normalizedQuery = normalizeProductName(query);
+  const tokenClause = buildTokenSearchClause(query);
+
+  return {
+    available: true,
+    priceHistory: { some: { store: { is: { key: { in: [...stores] } } } } },
+    OR: [
+      { name: { contains: query, mode: "insensitive" } },
+      { normalizedName: { contains: normalizedQuery, mode: "insensitive" } },
+      { brand: { contains: query, mode: "insensitive" } },
+      ...(tokenClause ? [tokenClause] : []),
+    ],
+  };
+}
+
+function buildProductSearchWhereForQueries(queries: string[], stores: readonly StoreKey[]): Prisma.ProductWhereInput {
+  const clauses = queries
+    .map((query) => buildProductSearchWhere(query, stores).OR)
+    .flat()
+    .filter(Boolean) as Prisma.ProductWhereInput[];
+
+  return {
+    available: true,
+    priceHistory: { some: { store: { is: { key: { in: [...stores] } } } } },
+    ...(clauses.length > 0 ? { OR: clauses } : {}),
+  };
 }

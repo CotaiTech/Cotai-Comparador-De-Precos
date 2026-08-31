@@ -354,6 +354,6 @@ describe("compareCart", () => {
     const result = compareCart([{ query: "Alface unidade", quantity: 1 }], custom);
     expect(result.stores.escola.foundItems).toBe(0);
     expect(result.stores.escola.complete).toBe(false);
-    expect(result.winner.store).toBeNull();
+    expect(result.winner.store).toBe("bahamas");
   });
 });

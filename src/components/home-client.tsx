@@ -32,6 +32,7 @@ export function HomeClient({
   const [comparisonError, setComparisonError] = useState("");
   const [user, setUser] = useState<AccountUser | null>(null);
   const [radarMessage, setRadarMessage] = useState("");
+  const [searchClearSignal, setSearchClearSignal] = useState(0);
 
   useEffect(() => {
     fetch("/api/auth/me").then((response) => response.json()).then((data: { user: AccountUser | null }) => setUser(data.user)).catch(() => null);
@@ -161,6 +162,7 @@ export function HomeClient({
 
       const data = (await response.json()) as CompareResult;
       setComparison(data);
+      setSearchClearSignal((current) => current + 1);
     } catch {
       setComparisonError("Não foi possível comparar sua lista agora.");
     } finally {
@@ -236,6 +238,7 @@ export function HomeClient({
                   onIncrease={increaseProductQuantity}
                   onDecrease={decreaseProductQuantity}
                   onTrack={handleTrack}
+                  clearSignal={searchClearSignal}
                 />
               ) : null}
               {comparisonError ? (

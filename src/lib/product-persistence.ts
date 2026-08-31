@@ -22,6 +22,17 @@ const storeWebsiteUrls: Record<StoreKey, string> = {
   bahamas: "https://bahamas.com.br/",
 };
 
+const DEFAULT_DB_BATCH_SIZE = 1;
+
+function getDbBatchSize() {
+  const value = Number(process.env.SCRAPER_DB_BATCH_SIZE);
+  if (!Number.isInteger(value) || value < 1) {
+    return DEFAULT_DB_BATCH_SIZE;
+  }
+
+  return value;
+}
+
 function mapSource(source: Product["source"]) {
   return source === "real" ? ProductSource.REAL : ProductSource.MOCK;
 }
@@ -187,32 +198,71 @@ function chunk<T>(items: T[], size: number) {
   return chunks;
 }
 
+function delay(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function isRetryableDbError(error: unknown) {
+  return (
+    error instanceof Prisma.PrismaClientKnownRequestError &&
+    ["P1001", "P1002", "P1017"].includes(error.code)
+  );
+}
+
+async function withDbRetry<T>(label: string, operation: () => Promise<T>) {
+  const maxAttempts = 8;
+
+  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+    try {
+      return await operation();
+    } catch (error) {
+      if (!isRetryableDbError(error) || attempt === maxAttempts) {
+        throw error;
+      }
+
+      const waitMs = Math.min(30000, 1000 * 2 ** (attempt - 1));
+      console.warn(
+        `Database connection failed during ${label}; retrying in ${waitMs}ms ` +
+          `(${attempt}/${maxAttempts})...`
+      );
+      await delay(waitMs);
+    }
+  }
+
+  throw new Error(`Database retry loop exhausted during ${label}.`);
+}
+
 export async function persistScrapedProducts(products: Product[]) {
   const savedProducts: Product[] = [];
   const canonicalProducts = dedupeProductsForPersistence(products.map(canonicalizeProduct));
   const productsByStore = new Map<StoreKey, Product[]>();
+  const dbBatchSize = getDbBatchSize();
 
   for (const product of canonicalProducts) {
     productsByStore.set(product.store, [...(productsByStore.get(product.store) ?? []), product]);
   }
 
   for (const [storeKey, storeProducts] of productsByStore) {
-    const store = await db.store.upsert({
-      where: { key: storeKey },
-      update: {
-        name: storeMeta[storeKey].label,
-        slug: storeKey,
-        websiteUrl: storeWebsiteUrls[storeKey],
-      },
-      create: {
-        key: storeKey,
-        name: storeMeta[storeKey].label,
-        slug: storeKey,
-        websiteUrl: storeWebsiteUrls[storeKey],
-      },
-    });
+    const store = await withDbRetry(`store upsert for ${storeKey}`, () =>
+      db.store.upsert({
+        where: { key: storeKey },
+        update: {
+          name: storeMeta[storeKey].label,
+          slug: storeKey,
+          websiteUrl: storeWebsiteUrls[storeKey],
+        },
+        create: {
+          key: storeKey,
+          name: storeMeta[storeKey].label,
+          slug: storeKey,
+          websiteUrl: storeWebsiteUrls[storeKey],
+        },
+      })
+    );
 
-    const existingProducts = await findExistingProducts(storeProducts, store.id);
+    const existingProducts = await withDbRetry(`existing product lookup for ${storeKey}`, () =>
+      findExistingProducts(storeProducts, store.id)
+    );
     const existingById = new Map(existingProducts.map((product) => [product.id, product]));
     const existingByExternalId = new Map(
       existingProducts
@@ -236,14 +286,16 @@ export async function persistScrapedProducts(products: Product[]) {
 
     const persistedByInputId = new Map<string, string>();
 
-    for (const batch of chunk(resolvedProducts, 10)) {
+    for (const batch of chunk(resolvedProducts, dbBatchSize)) {
       const dbProducts = await Promise.all(
         batch.map(({ product, existing }) =>
-          db.product.upsert({
-            where: { id: existing?.id ?? product.id },
-            update: productUpdatePayload(product),
-            create: productPayload(product),
-          })
+          withDbRetry(`product upsert for ${product.name}`, () =>
+            db.product.upsert({
+              where: { id: existing?.id ?? product.id },
+              update: productUpdatePayload(product),
+              create: productPayload(product),
+            })
+          )
         )
       );
 
@@ -252,18 +304,20 @@ export async function persistScrapedProducts(products: Product[]) {
       });
     }
 
-    await db.priceHistory.createMany({
-      data: storeProducts.map((product) => ({
-        productId: persistedByInputId.get(product.id) ?? product.id,
-        storeId: store.id,
-        price: product.price,
-        originalPrice: product.originalPrice,
-        promotion: product.promotion,
-        source: mapSource(product.source),
-        observedAt: new Date(product.updatedAt),
-      })),
-      skipDuplicates: true,
-    });
+    await withDbRetry(`price history insert for ${storeKey}`, () =>
+      db.priceHistory.createMany({
+        data: storeProducts.map((product) => ({
+          productId: persistedByInputId.get(product.id) ?? product.id,
+          storeId: store.id,
+          price: product.price,
+          originalPrice: product.originalPrice,
+          promotion: product.promotion,
+          source: mapSource(product.source),
+          observedAt: new Date(product.updatedAt),
+        })),
+        skipDuplicates: true,
+      })
+    );
 
     const persistedProductIds = [
       ...new Set(
@@ -271,30 +325,34 @@ export async function persistScrapedProducts(products: Product[]) {
       ),
     ];
 
-    await db.promotion.deleteMany({
-      where: {
-        productId: { in: persistedProductIds },
-        storeId: store.id,
-      },
-    });
+    await withDbRetry(`promotion cleanup for ${storeKey}`, () =>
+      db.promotion.deleteMany({
+        where: {
+          productId: { in: persistedProductIds },
+          storeId: store.id,
+        },
+      })
+    );
 
     const promotions = storeProducts.filter((product) => product.promotion);
 
     if (promotions.length > 0) {
-      await db.promotion.createMany({
-        data: promotions.map((product) => ({
-          productId: persistedByInputId.get(product.id) ?? product.id,
-          storeId: store.id,
-          title: product.name,
-          price: product.price,
-          originalPrice: product.originalPrice,
-          discountPercentage: product.discountPercentage,
-          active: true,
-          sourceUrl: product.productUrl,
-          source: mapSource(product.source),
-          startsAt: new Date(product.updatedAt),
-        })),
-      });
+      await withDbRetry(`promotion insert for ${storeKey}`, () =>
+        db.promotion.createMany({
+          data: promotions.map((product) => ({
+            productId: persistedByInputId.get(product.id) ?? product.id,
+            storeId: store.id,
+            title: product.name,
+            price: product.price,
+            originalPrice: product.originalPrice,
+            discountPercentage: product.discountPercentage,
+            active: true,
+            sourceUrl: product.productUrl,
+            source: mapSource(product.source),
+            startsAt: new Date(product.updatedAt),
+          })),
+        })
+      );
     }
 
     savedProducts.push(

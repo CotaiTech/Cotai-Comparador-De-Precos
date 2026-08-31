@@ -3,10 +3,27 @@ import { db as prisma } from "@/lib/db";
 
 const args = process.argv.slice(2);
 const queryIndex = args.indexOf("--query");
+const concurrencyIndex = args.indexOf("--concurrency");
+const maxPagesIndex = args.indexOf("--max-pages");
+
+function readPositiveInteger(index: number) {
+  if (index < 0) {
+    return undefined;
+  }
+
+  const value = Number(args[index + 1]);
+  if (!Number.isInteger(value) || value < 1) {
+    throw new Error(`Expected a positive integer after ${args[index]}.`);
+  }
+
+  return value;
+}
 
 async function main() {
   const query = queryIndex >= 0 ? args[queryIndex + 1] : undefined;
-  const products = await scrapeSupermercadoEscolaProducts({ query });
+  const concurrency = readPositiveInteger(concurrencyIndex);
+  const maxPages = readPositiveInteger(maxPagesIndex);
+  const products = await scrapeSupermercadoEscolaProducts({ query, concurrency, maxPages });
 
   console.log(
     query

@@ -11,6 +11,8 @@ import { calculateReportEconomy } from "@/lib/report-metrics";
 export function ReportView({ planning, user }: { planning: SavedPlanning; user: AccountUser }) {
   const [mode, setMode] = useState<"resumido" | "completo">("resumido");
   const result = planning.result;
+  const selectedOption = result.selectedOption;
+  const selectedTotal = selectedOption?.total ?? result.optimized.total;
   const economy = calculateReportEconomy(result);
 
   return (
@@ -24,7 +26,7 @@ export function ReportView({ planning, user }: { planning: SavedPlanning; user: 
       <article className="report-page mx-auto max-w-5xl bg-white p-8 shadow-xl print:max-w-none print:p-0 print:shadow-none sm:p-12">
         <header className="flex items-start justify-between gap-5 border-b border-slate-900 pb-7"><div><p className="font-serif text-4xl tracking-tight">COTA<span className="text-emerald-700">Í</span></p><p className="mt-1 text-xs text-slate-500">Inteligência para suas compras</p></div><div className="text-right"><p className="text-sm font-bold uppercase text-emerald-800">Relatório {mode}</p><h1 className="mt-1 text-xl font-semibold">{planning.name}</h1><p className="mt-1 text-sm text-slate-500">{new Date(planning.createdAt).toLocaleString("pt-BR")}</p><p className="mt-2 text-sm font-medium">{user.restaurantName}</p></div></header>
 
-        <section className="mt-8 grid gap-4 border border-slate-200 p-5 sm:grid-cols-3"><ReportMetric label="Valor otimizado" value={formatCurrency(result.optimized.total)} /><ReportMetric label="Economia estimada" value={economy.available ? formatCurrency(economy.savings) : "Indisponível"} green /><ReportMetric label="Economia percentual" value={economy.available ? `${economy.savingsPercentage.toFixed(1)}%` : "Indisponível"} green /></section>
+        <section className="mt-8 grid gap-4 border border-slate-200 p-5 sm:grid-cols-3"><ReportMetric label={selectedOption?.label ?? "Valor otimizado"} value={formatCurrency(selectedTotal)} /><ReportMetric label="Economia estimada" value={economy.available ? formatCurrency(economy.savings) : "Indisponível"} green /><ReportMetric label="Economia percentual" value={economy.available ? `${economy.savingsPercentage.toFixed(1)}%` : "Indisponível"} green /></section>
 
         <section className="mt-9"><SectionTitle>Resumo da compra</SectionTitle><div className="mt-4 overflow-x-auto"><table className="w-full text-left text-sm"><thead><tr className="border-b border-slate-300 text-xs uppercase text-slate-500"><th className="py-3">Produto</th><th>Quantidade</th><th>Estabelecimento</th><th className="text-right">Subtotal</th></tr></thead><tbody>{result.lines.map((line) => { const entry = line.bestStore ? line.stores[line.bestStore] : null; return <tr key={line.query} className="border-b border-slate-100"><td className="py-3 font-medium">{line.query}</td><td>{line.quantity}</td><td>{line.bestStore ? storeMeta[line.bestStore].label : "Não encontrado"}</td><td className="text-right">{entry?.subtotal != null ? formatCurrency(entry.subtotal) : "-"}</td></tr>; })}</tbody><tfoot><tr className="font-bold"><td className="pt-4" colSpan={3}>Total da compra</td><td className="pt-4 text-right">{formatCurrency(result.optimized.total)}</td></tr></tfoot></table></div></section>
 
