@@ -81,7 +81,7 @@ async function fetchPublic(url: string, init?: RequestInit) {
       signal: controller.signal,
       headers: {
         accept: "text/html,application/json,application/pdf;q=0.9,*/*;q=0.8",
-        "user-agent": "CotaI-Hackathon/1.0 (+public-flyer-reader)",
+        "user-agent": "CotaI/1.0 (+public-flyer-reader)",
         ...init?.headers,
       },
     });

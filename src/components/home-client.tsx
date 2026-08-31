@@ -7,7 +7,6 @@ import { ProductSearch } from "@/components/product-search";
 import { PromotionCard } from "@/components/promotion-card";
 import { ShoppingCart, CartViewItem } from "@/components/shopping-cart";
 import { ComparisonResult } from "@/components/comparison-result";
-import { DemoBanner } from "@/components/demo-banner";
 import { CompareResult } from "@/lib/compare-cart";
 import { Product } from "@/providers/types";
 import { AccountUser } from "@/lib/account-types";
@@ -177,7 +176,6 @@ export function HomeClient({
       <Navbar />
 
       <main className="mx-auto flex max-w-7xl flex-col gap-10 px-4 py-8 sm:px-6 lg:px-8">
-        <DemoBanner />
         {radarMessage ? <p className="rounded-2xl bg-emerald-50 px-4 py-3 text-sm text-emerald-800">{radarMessage}</p> : null}
 
         {!promotionsOnly && !compareOnly ? (
@@ -185,7 +183,7 @@ export function HomeClient({
             <div>
               <div className="inline-flex items-center gap-2 rounded-full bg-white px-4 py-2 text-sm font-medium text-emerald-700 shadow-sm">
                 <CheckCircle2 className="h-4 w-4" />
-                Comparação rápida para o hackathon
+                Comparação inteligente para compras
               </div>
               <h1 className="mt-6 max-w-2xl text-5xl font-semibold tracking-tight text-slate-950 sm:text-6xl">
                 Compare sua compra e economize.

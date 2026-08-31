@@ -4,7 +4,7 @@ Aplicação web em Next.js para comparar uma lista de compras entre supermercado
 
 ## Objetivo
 
-O MVP foi desenhado para o fluxo principal do hackathon:
+A aplicação foi desenhada para o fluxo principal de comparação:
 
 1. Pesquisar produtos.
 2. Adicionar itens à lista.
@@ -65,7 +65,7 @@ Separação de responsabilidades:
 ## Recursos para restaurantes
 
 - Cadastro personalizado com perfil alimentar e dados operacionais.
-- Plano CotaÍ Pro demonstrativo de R$ 119,90/mês, sem cobrança real.
+- Plano CotaÍ Pro de R$ 119,90/mês.
 - Radar de produtos de alto interesse e busca de promoções relacionadas.
 - Cenários de rota rápida, curta e de máxima economia considerando combustível.
 - Planejamentos nomeados e associados à conta da empresa.
@@ -154,7 +154,7 @@ http://localhost:3000
 - A comparação usa matching por similaridade textual, marca e embalagem.
 - Produtos com embalagens incompatíveis não são tratados como equivalentes automaticamente.
 - Produtos indisponíveis aparecem como `Não encontrado`, nunca como `R$ 0,00`.
-- O vencedor da compra completa só é declarado quando as duas lojas encontram todos os itens.
+- O vencedor da compra completa é declarado quando pelo menos uma loja encontra todos os itens.
 - A compra otimizada escolhe o menor subtotal disponível por produto.
 
 ## Como atualizar os produtos
@@ -202,12 +202,12 @@ npm run scrape:flyers -- --store bahamas --json
 
 ## Login
 
-O MVP possui cadastro e login para restaurantes/empresas em `/login`.
+A aplicação possui cadastro e login para restaurantes/empresas em `/login`.
 
 - As contas ficam em `data/users.json` no ambiente local.
 - Senhas são armazenadas usando hash `scrypt`, nunca em texto puro.
 - A sessão é mantida em cookie `httpOnly` por até 30 dias.
-- Essa persistência é apropriada para a demonstração local. Em produção, substitua o arquivo JSON por SQLite ou um banco gerenciado e configure uma estratégia de recuperação de senha.
+- Essa persistência é apropriada para desenvolvimento local. Em produção, substitua o arquivo JSON por SQLite ou um banco gerenciado e configure uma estratégia de recuperação de senha.
 
 A identidade da empresa já está disponível para que histórico de economia e estoque sejam vinculados à conta em uma próxima etapa.
 
@@ -228,13 +228,13 @@ Cobertura atual:
 
 ## Limitações atuais
 
-- O provider do Supermercado Escola é híbrido e não depende exclusivamente do site para o MVP funcionar.
+- O provider do Supermercado Escola é híbrido e não depende exclusivamente do site para a aplicação funcionar.
 - O scraper do Amantino depende da renderização pública atual da página e pode precisar ajustes se a estrutura visual/DOM mudar.
-- Os scrapers de folhetos dependem dos endpoints, links e estrutura textual pública dos PDFs. PDFs somente com imagens são descartados porque o MVP não executa OCR.
+- Os scrapers de folhetos dependem dos endpoints, links e estrutura textual pública dos PDFs. PDFs somente com imagens são descartados porque a aplicação não executa OCR.
 - Preço publicado em folheto confirma oferta e vigência, mas não confirma estoque em tempo real da loja; a disponibilidade continua sujeita ao aviso do próprio encarte.
 - A busca ao vivo do Supermercado Escola usa parsing HTML simples e pode precisar ajustes se o markup público mudar.
 - Não há recuperação de senha, controle de permissões, checkout, pagamento, pedidos reais ou painel administrativo.
-- O plano de R$ 119,90 é apenas demonstrativo; não há cobrança ou gateway de pagamento.
+- Não há checkout, cobrança ou gateway de pagamento integrado.
 - Distâncias e preço do combustível são configurados manualmente no perfil. Mapas, trânsito e preço oficial ao vivo ainda não estão integrados.
 - A foto da nota tenta reconhecer o QR Code quando o navegador oferece suporte. OCR completo da imagem ainda não está disponível; o texto pode ser colado ou digitado para importação.
 - “Salvar em PDF” usa o diálogo de impressão do navegador.

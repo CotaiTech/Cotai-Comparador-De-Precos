@@ -48,7 +48,7 @@ async function fetchPublic(url: string) {
     cache: "no-store",
     headers: {
       accept: "text/html,application/json,*/*;q=0.8",
-      "user-agent": "CotaI-Hackathon/1.0 (+supermercado-escola-scraper)",
+      "user-agent": "CotaI/1.0 (+supermercado-escola-scraper)",
     },
   });
 
