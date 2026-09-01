@@ -1,5 +1,6 @@
 import { extractPackaging, inferBrand, normalizeProductName } from "@/lib/normalize-product";
 import { persistScrapedProducts } from "@/lib/product-persistence";
+import { createScraperProgress, withScraperRetry } from "@/lib/scraper-resilience";
 import { Product } from "@/providers/types";
 
 type EscolaDataLayerItem = {
@@ -14,6 +15,7 @@ type ScrapeEscolaOptions = {
   categoryUrls?: string[];
   maxPages?: number;
   concurrency?: number;
+  resume?: boolean;
 };
 
 const ESCOLA_BASE_URL = "https://supermercadoescola.org.br";
@@ -385,6 +387,12 @@ async function scrapeCategoriesWithConcurrency(
   onCategoryComplete?: (
     result: PromiseSettledResult<Product[]>,
     categoryUrl: string
+  ) => Promise<void>,
+  shouldSkipCategory?: (categoryUrl: string) => boolean,
+  onCategoryStart?: (
+    categoryUrl: string,
+    categoryIndex: number,
+    categoryTotal: number
   ) => Promise<void>
 ) {
   const results: PromiseSettledResult<Product[]>[] = [];
@@ -402,11 +410,23 @@ async function scrapeCategoriesWithConcurrency(
           `(${categoryIndex + 1}/${categoryUrls.length})`
       );
 
+      if (shouldSkipCategory?.(categoryUrl)) {
+        console.log(`Skipping completed category ${categoryLabel(categoryUrl)}.`);
+        results[categoryIndex] = { status: "fulfilled", value: [] };
+        continue;
+      }
+
+      if (onCategoryStart) {
+        await onCategoryStart(categoryUrl, categoryIndex + 1, categoryUrls.length);
+      }
+
       let result: PromiseSettledResult<Product[]>;
       try {
         result = {
           status: "fulfilled",
-          value: await scrapeCategory(categoryUrl, updatedAt, maxPages),
+          value: await withScraperRetry(`Category ${categoryLabel(categoryUrl)}`, () =>
+            scrapeCategory(categoryUrl, updatedAt, maxPages)
+          ),
         };
       } catch (reason) {
         result = { status: "rejected", reason };
@@ -415,7 +435,12 @@ async function scrapeCategoriesWithConcurrency(
       results[categoryIndex] = result;
 
       if (onCategoryComplete) {
-        await onCategoryComplete(result, categoryUrl);
+        try {
+          await onCategoryComplete(result, categoryUrl);
+        } catch (reason) {
+          results[categoryIndex] = { status: "rejected", reason };
+          console.error(`Failed category completion for ${categoryLabel(categoryUrl)}:`, reason);
+        }
       }
     }
   }
@@ -441,6 +466,11 @@ export async function scrapeSupermercadoEscolaProducts(options: ScrapeEscolaOpti
 
   const savedProducts: Product[] = [];
   const normalizedQuery = options.query ? normalizeProductName(options.query) : null;
+  const progress = await createScraperProgress("supermercado-escola", {
+    resume: options.resume,
+  });
+
+  console.log(`Supermercado Escola: scraper progress state at ${progress.statePath}`);
 
   const batches = await scrapeCategoriesWithConcurrency(
     categoryUrls,
@@ -448,8 +478,11 @@ export async function scrapeSupermercadoEscolaProducts(options: ScrapeEscolaOpti
     updatedAt,
     options.maxPages,
     async (result, categoryUrl) => {
+      const label = categoryLabel(categoryUrl);
+
       if (result.status === "rejected") {
-        console.error(`Failed category ${categoryLabel(categoryUrl)}:`, result.reason);
+        console.error(`Failed category ${label}:`, result.reason);
+        await progress.failCategory(categoryUrl, label, result.reason);
         return;
       }
 
@@ -458,17 +491,36 @@ export async function scrapeSupermercadoEscolaProducts(options: ScrapeEscolaOpti
       );
 
       if (productsToPersist.length === 0) {
-        console.log(`No products to persist for category ${categoryLabel(categoryUrl)}.`);
+        console.log(`No products to persist for category ${label}.`);
+        await progress.succeedCategory(categoryUrl, label, 0);
         return;
       }
 
       console.log(
-        `Persisting ${productsToPersist.length} product(s) from category ${categoryLabel(categoryUrl)}...`
+        `Persisting ${productsToPersist.length} product(s) from category ${label}...`
       );
-      const persisted = await persistScrapedProducts(productsToPersist);
-      savedProducts.push(...persisted);
-      console.log(`Persisted ${persisted.length} product(s) from category ${categoryLabel(categoryUrl)}.`);
-    }
+      try {
+        const persisted = await withScraperRetry(`Persisting category ${label}`, () =>
+          persistScrapedProducts(productsToPersist)
+        );
+        savedProducts.push(...persisted);
+        await progress.succeedCategory(categoryUrl, label, persisted.length);
+        console.log(`Persisted ${persisted.length} product(s) from category ${label}.`);
+      } catch (error) {
+        await progress.failCategory(categoryUrl, label, error, productsToPersist.length);
+        const snapshotPath = await progress.writeFailureSnapshot(
+          categoryUrl,
+          label,
+          productsToPersist,
+          error
+        );
+        console.error(`Failed to persist category ${label}. Snapshot written to ${snapshotPath}`);
+        throw error;
+      }
+    },
+    (categoryUrl) => progress.isCompleted(categoryUrl),
+    (categoryUrl, categoryIndex, categoryTotal) =>
+      progress.startCategory(categoryUrl, categoryLabel(categoryUrl), categoryIndex, categoryTotal)
   );
 
   for (const batch of batches) {

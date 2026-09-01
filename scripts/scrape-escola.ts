@@ -5,6 +5,7 @@ const args = process.argv.slice(2);
 const queryIndex = args.indexOf("--query");
 const concurrencyIndex = args.indexOf("--concurrency");
 const maxPagesIndex = args.indexOf("--max-pages");
+const resume = args.includes("--resume");
 
 function readPositiveInteger(index: number) {
   if (index < 0) {
@@ -23,7 +24,7 @@ async function main() {
   const query = queryIndex >= 0 ? args[queryIndex + 1] : undefined;
   const concurrency = readPositiveInteger(concurrencyIndex);
   const maxPages = readPositiveInteger(maxPagesIndex);
-  const products = await scrapeSupermercadoEscolaProducts({ query, concurrency, maxPages });
+  const products = await scrapeSupermercadoEscolaProducts({ query, concurrency, maxPages, resume });
 
   console.log(
     query

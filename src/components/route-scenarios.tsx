@@ -1,4 +1,4 @@
-import { Clock3, Fuel, MapPinned, Route } from "lucide-react";
+import { CheckCircle2, Clock3, Fuel, MapPinned, Route } from "lucide-react";
 import { AccountProfile } from "@/lib/account-types";
 import { CompareResult, PurchaseOptionSelection } from "@/lib/compare-cart";
 import { formatCurrency } from "@/lib/format";
@@ -37,6 +37,7 @@ export function RouteScenarios({
             <button
               key={scenario.id}
               type="button"
+              aria-pressed={selected}
               onClick={() =>
                 onSelect?.({
                   id: optionId,
@@ -57,7 +58,10 @@ export function RouteScenarios({
                     : "border-slate-200 bg-slate-50 hover:border-slate-400"
               }`}
             >
-              <Icon className={`h-5 w-5 ${scenario.id === "economica" ? "text-emerald-700" : "text-slate-600"}`} />
+              <div className="flex items-start justify-between gap-3">
+                <Icon className={`h-5 w-5 ${scenario.id === "economica" ? "text-emerald-700" : "text-slate-600"}`} />
+                {selected ? <CheckCircle2 className="h-5 w-5 text-slate-950" /> : null}
+              </div>
               <h4 className="mt-4 font-semibold text-slate-950">{meta.title}</h4>
               <p className="mt-1 text-xs leading-5 text-slate-500">{meta.description}</p>
               <p className="mt-4 text-2xl font-semibold">{formatCurrency(scenario.adjustedTotal)}</p>

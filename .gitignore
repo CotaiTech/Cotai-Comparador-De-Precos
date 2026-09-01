@@ -4,5 +4,6 @@ node_modules/
 !.env.example
 data/users.json
 *.log
+.scraper-runs/
 tsconfig.tsbuildinfo
 .DS_Store

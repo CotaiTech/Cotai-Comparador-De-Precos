@@ -1,4 +1,9 @@
-import { normalizeProductName, productNameStopwords } from "@/lib/normalize-product";
+import {
+  classifyProductCategories,
+  normalizeProductName,
+  productCategoriesOverlap,
+  productNameStopwords,
+} from "@/lib/normalize-product";
 import { Product } from "@/providers/types";
 
 export const defaultProductSearchLimit = 32;
@@ -28,8 +33,16 @@ const searchTokenAliases: Record<string, string[]> = {
     "coxa",
     "sobrecoxa",
     "asa",
+    "file",
+    "sassami",
   ],
+  frango: ["peito", "coxa", "sobrecoxa", "asa", "file", "sassami"],
+  bovino: ["carne", "patinho", "alcatra", "musculo", "costela"],
+  linguica: ["calabresa", "toscana"],
   bebida: ["refrigerante", "suco", "agua", "cerveja"],
+  queijo: ["mussarela", "muçarela", "requeijao"],
+  frios: ["queijo", "mussarela", "muçarela", "presunto", "mortadela"],
+  laticinio: ["leite", "manteiga", "queijo", "requeijao", "iogurte"],
   limpeza: ["detergente", "sabao", "desinfetante", "amaciante"],
 };
 
@@ -41,7 +54,7 @@ export function productSearchTokens(value: string) {
 }
 
 export function productSearchTokenAlternatives(token: string) {
-  return [...new Set([token, ...(searchTokenAliases[token] ?? [])])];
+  return [...new Set([token, ...(searchTokenAliases[token] ?? [])].map(normalizeProductName))];
 }
 
 function containsOrderedTokens(productTokens: string[], queryTokens: string[]) {
@@ -74,6 +87,9 @@ export function getProductSearchScore(product: Product, query: string) {
   const normalizedBrand = product.brand ? normalizeProductName(product.brand) : "";
   const productTokens = productSearchTokens(normalizedName);
   const queryTokens = productSearchTokens(normalizedQuery);
+  const queryCategories = classifyProductCategories(query);
+  const productCategories = classifyProductCategories(product.name);
+  const categoryAligned = productCategoriesOverlap(queryCategories, productCategories);
 
   let score = 0;
 
@@ -107,6 +123,10 @@ export function getProductSearchScore(product: Product, query: string) {
     score += 70;
   }
 
+  if (categoryAligned) {
+    score += 120;
+  }
+
   const unmatchedQueryTokens = queryTokens.filter(
     (token) =>
       !productTokens.some((productToken) => productSearchTokenAlternatives(token).includes(productToken))
@@ -122,15 +142,21 @@ export function getProductSearchScore(product: Product, query: string) {
 }
 
 export function sortProductsBySearchRelevance(products: Product[], query: string) {
-  return [...products].sort((left, right) => {
-    const scoreDifference = getProductSearchScore(right, query) - getProductSearchScore(left, query);
+  return products
+    .map((product) => ({
+      product,
+      score: getProductSearchScore(product, query),
+    }))
+    .sort((left, right) => {
+      const scoreDifference = right.score - left.score;
 
-    if (scoreDifference !== 0) {
-      return scoreDifference;
-    }
+      if (scoreDifference !== 0) {
+        return scoreDifference;
+      }
 
-    return left.name.localeCompare(right.name, "pt-BR", { sensitivity: "base" });
-  });
+      return left.product.name.localeCompare(right.product.name, "pt-BR", { sensitivity: "base" });
+    })
+    .map(({ product }) => product);
 }
 
 export function paginateProducts(

@@ -2,12 +2,17 @@ import puppeteer, { Browser, LaunchOptions, Page } from "puppeteer";
 import { existsSync } from "node:fs";
 import { extractPackaging, inferBrand, normalizeProductName } from "@/lib/normalize-product";
 import { persistScrapedProducts } from "@/lib/product-persistence";
+import { createScraperProgress, withScraperRetry } from "@/lib/scraper-resilience";
 import { Product } from "@/providers/types";
 
 type ScrapeOptions = {
   query?: string;
   promotionsOnly?: boolean;
   limit?: number;
+};
+
+type ScrapeAllAmantinoOptions = {
+  resume?: boolean;
 };
 
 type RawCard = {
@@ -72,20 +77,35 @@ export async function scrapeAmantinoProducts(options: ScrapeOptions = {}) {
   return withBrowser((browser) => scrapeAmantinoProductsWithBrowser(browser, options, key));
 }
 
-export async function scrapeAllAmantinoSeededProducts() {
+export async function scrapeAllAmantinoSeededProducts(options: ScrapeAllAmantinoOptions = {}) {
   return withBrowser(async (browser) => {
     const allProducts: Product[] = [];
+    const progress = await createScraperProgress("amantino", { resume: options.resume });
+
+    console.log(`Amantino: scraper progress state at ${progress.statePath}`);
 
     for (let index = 0; index < querySeeds.length; index += 1) {
       const query = querySeeds[index];
+      const categoryKey = query;
       console.log(`Amantino: scraping category ${index + 1}/${querySeeds.length}: ${query}`);
+
+      if (progress.isCompleted(categoryKey)) {
+        console.log(`Amantino: skipping completed category ${query}.`);
+        continue;
+      }
+
+      await progress.startCategory(categoryKey, query, index + 1, querySeeds.length);
 
       try {
         const key = JSON.stringify({ query, limit: 40 });
-        const products = await scrapeAmantinoProductsWithBrowser(browser, { query, limit: 40 }, key);
+        const products = await withScraperRetry(`Amantino category ${query}`, () =>
+          scrapeAmantinoProductsWithBrowser(browser, { query, limit: 40 }, key)
+        );
         allProducts.push(...products);
+        await progress.succeedCategory(categoryKey, query, products.length);
       } catch (error) {
         console.error(`Amantino: failed category ${query}:`, error);
+        await progress.failCategory(categoryKey, query, error);
       }
     }
 

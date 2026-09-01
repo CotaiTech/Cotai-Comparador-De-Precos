@@ -51,6 +51,39 @@ export type StandardizedPricePerUnit = {
   sourceUnit: ExtractedProductMeasure["unit"];
 };
 
+const productCategories = [
+  { key: "papel-toalha", terms: ["papel toalha", "toalha"] },
+  { key: "papel-higienico", terms: ["papel higienico", "higienico"] },
+  { key: "arroz", terms: ["arroz"] },
+  { key: "feijao", terms: ["feijao"] },
+  { key: "oleo", terms: ["oleo", "azeite"] },
+  { key: "leite", terms: ["leite"] },
+  { key: "manteiga", terms: ["manteiga", "margarina"] },
+  { key: "queijo", terms: ["queijo", "mussarela", "muçarela", "requeijao"] },
+  { key: "presunto", terms: ["presunto", "mortadela"] },
+  { key: "pao", terms: ["pao"] },
+  { key: "refrigerante", terms: ["refrigerante", "coca cola", "guarana", "fanta", "sprite"] },
+  { key: "suco", terms: ["suco"] },
+  { key: "agua", terms: ["agua"] },
+  { key: "carne", terms: ["patinho", "alcatra", "musculo", "carne", "bovino"] },
+  { key: "frango", terms: ["frango", "peito", "coxa", "sobrecoxa", "asa", "sassami"] },
+  { key: "linguica", terms: ["linguica", "calabresa", "toscana"] },
+  { key: "tomate", terms: ["tomate"] },
+  { key: "batata", terms: ["batata"] },
+  { key: "cebola", terms: ["cebola"] },
+  { key: "alface", terms: ["alface"] },
+  { key: "detergente", terms: ["detergente"] },
+  { key: "sabao", terms: ["sabao", "lava", "roupas", "omo"] },
+] as const;
+
+export type ProductCategoryKey = (typeof productCategories)[number]["key"];
+
+const compatibleProductCategories: Partial<Record<ProductCategoryKey, ProductCategoryKey[]>> = {
+  carne: ["frango", "linguica"],
+  frango: ["carne"],
+  linguica: ["carne"],
+};
+
 export const productNameStopwords = new Set([
   "de",
   "da",
@@ -272,38 +305,31 @@ export function normalizeProductNameForMatching(text: string) {
 }
 
 export function classifyProduct(text: string) {
+  return classifyProductCategories(text)[0];
+}
+
+export function classifyProductCategories(text: string) {
   const normalized = normalizeProductName(text);
 
-  const categories: Array<{ key: string; terms: string[] }> = [
-    { key: "papel-toalha", terms: ["papel toalha", "toalha"] },
-    { key: "papel-higienico", terms: ["papel higienico", "higienico"] },
-    { key: "arroz", terms: ["arroz"] },
-    { key: "feijao", terms: ["feijao"] },
-    { key: "oleo", terms: ["oleo", "azeite"] },
-    { key: "leite", terms: ["leite"] },
-    { key: "manteiga", terms: ["manteiga", "margarina"] },
-    { key: "queijo", terms: ["queijo", "mussarela", "muçarela", "requeijao"] },
-    { key: "presunto", terms: ["presunto", "mortadela"] },
-    { key: "pao", terms: ["pao"] },
-    { key: "refrigerante", terms: ["refrigerante", "coca cola", "guarana", "fanta", "sprite"] },
-    { key: "suco", terms: ["suco"] },
-    { key: "agua", terms: ["agua"] },
-    { key: "carne", terms: ["patinho", "alcatra", "musculo", "carne", "bovino"] },
-    { key: "frango", terms: ["frango", "peito", "coxa", "sobrecoxa", "asa"] },
-    { key: "linguica", terms: ["linguica", "calabresa", "toscana"] },
-    { key: "tomate", terms: ["tomate"] },
-    { key: "batata", terms: ["batata"] },
-    { key: "cebola", terms: ["cebola"] },
-    { key: "alface", terms: ["alface"] },
-    { key: "detergente", terms: ["detergente"] },
-    { key: "sabao", terms: ["sabao", "lava", "roupas", "omo"] },
-  ];
+  return productCategories
+    .filter((category) =>
+      category.terms.some((term) => normalized.includes(normalizeProductName(term)))
+    )
+    .map((category) => category.key);
+}
 
-  const match = categories.find((category) =>
-    category.terms.some((term) => normalized.includes(normalizeProductName(term)))
+export function productCategoriesOverlap(
+  left: readonly ProductCategoryKey[],
+  right: readonly ProductCategoryKey[]
+) {
+  return left.some((leftCategory) =>
+    right.some(
+      (rightCategory) =>
+        leftCategory === rightCategory ||
+        compatibleProductCategories[leftCategory]?.includes(rightCategory) ||
+        compatibleProductCategories[rightCategory]?.includes(leftCategory)
+    )
   );
-
-  return match?.key;
 }
 
 export function toComparableAmount(quantity?: number, unit?: ParsedPackaging["unit"]) {

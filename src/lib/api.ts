@@ -1,6 +1,6 @@
 import { Prisma, ProductSource, ProductUnit } from "@prisma/client";
 import { demoProducts } from "@/data/demo-products";
-import { compareCart } from "@/lib/compare-cart";
+import { compareCart, type CompareResult } from "@/lib/compare-cart";
 import db from "@/lib/db";
 import { normalizeProductName } from "@/lib/normalize-product";
 import {
@@ -34,6 +34,21 @@ const promotionWithRelations = Prisma.validator<Prisma.PromotionDefaultArgs>()({
 type ProductWithLatestPrice = Prisma.ProductGetPayload<typeof productWithLatestPrice>;
 type PromotionWithRelations = Prisma.PromotionGetPayload<typeof promotionWithRelations>;
 type ProductSearchOptions = { page?: number; limit?: number; stores?: StoreKey[] };
+type CacheEntry<T> = {
+  expiresAt: number;
+  value: T;
+};
+
+const SEARCH_CACHE_TTL_MS = 60_000;
+const COMPARE_CACHE_TTL_MS = 30_000;
+const CACHE_MAX_ENTRIES = 100;
+const DEFAULT_SEARCH_CANDIDATE_LIMIT = 320;
+const DEFAULT_COMPARE_CANDIDATES_PER_ITEM = 160;
+const MAX_SEARCH_CANDIDATE_LIMIT = 1_000;
+const MAX_COMPARE_CANDIDATES_PER_ITEM = 600;
+
+const searchCache = new Map<string, CacheEntry<Awaited<ReturnType<typeof searchDemoProductsPage>>>>();
+const compareCache = new Map<string, CacheEntry<CompareResult>>();
 
 function hasDatabaseConfig() {
   return Boolean(process.env.DATABASE_URL);
@@ -125,33 +140,64 @@ export async function searchProductsPage(
   query: string,
   options: ProductSearchOptions = {}
 ) {
-  if (!hasDatabaseConfig()) {
-    return searchDemoProductsPage(query, options);
+  const startedAt = performance.now();
+  const stores = normalizeStoreFilter(options.stores);
+  const page = options.page ?? 1;
+  const limit = options.limit ?? defaultProductSearchLimit;
+  const cacheKey = productSearchCacheKey(query, { page, limit, stores });
+  const cachedResult = readCache(searchCache, cacheKey);
+
+  if (cachedResult) {
+    logTiming("product search", startedAt, { query, stores, source: "cache" });
+    return cachedResult;
   }
 
-  const normalizedQuery = normalizeProductName(query);
-  const stores = normalizeStoreFilter(options.stores);
+  if (!hasDatabaseConfig()) {
+    const result = searchDemoProductsPage(query, { page, limit, stores });
+    writeCache(searchCache, cacheKey, result, SEARCH_CACHE_TTL_MS);
+    logTiming("product search", startedAt, { query, stores, source: "demo" });
+    return result;
+  }
 
   try {
-    const products = await db.product.findMany({
-      where: buildProductSearchWhere(query, stores),
-      orderBy: { name: "asc" },
-      ...productWithLatestPriceForStores(stores),
-    });
+    const products = await fetchProductCandidates(
+      query,
+      stores,
+      getPositiveIntegerEnv(
+        "PRODUCT_SEARCH_CANDIDATE_LIMIT",
+        DEFAULT_SEARCH_CANDIDATE_LIMIT,
+        MAX_SEARCH_CANDIDATE_LIMIT
+      ),
+      "search"
+    );
 
     const mappedProducts = products.flatMap((product) => {
       const mapped = toApiProduct(product);
       return mapped ? [mapped] : [];
     });
 
-    return paginateProducts(
+    const result = paginateProducts(
       sortProductsBySearchRelevance(mappedProducts, query),
-      options.page ?? 1,
-      options.limit ?? defaultProductSearchLimit
+      page,
+      limit
     );
+
+    writeCache(searchCache, cacheKey, result, SEARCH_CACHE_TTL_MS);
+    logTiming("product search", startedAt, {
+      query,
+      stores,
+      source: "database",
+      candidates: products.length,
+      mapped: mappedProducts.length,
+      total: result.total,
+    });
+    return result;
   } catch (error) {
     console.error("Falling back to demo product search:", error);
-    return searchDemoProductsPage(query, options);
+    const result = searchDemoProductsPage(query, { page, limit, stores });
+    writeCache(searchCache, cacheKey, result, SEARCH_CACHE_TTL_MS);
+    logTiming("product search", startedAt, { query, stores, source: "fallback" });
+    return result;
   }
 }
 
@@ -177,22 +223,52 @@ export async function getAllPromotions() {
 }
 
 export async function compareQueries(items: Array<{ query: string; quantity: number }>) {
-  if (!hasDatabaseConfig()) {
-    return compareCartWithProducts(items, demoProducts);
+  const startedAt = performance.now();
+  const cacheKey = compareCacheKey(items);
+  const cachedResult = readCache(compareCache, cacheKey);
+
+  if (cachedResult) {
+    logTiming("cart comparison", startedAt, { items: items.length, source: "cache" });
+    return cachedResult;
   }
 
-  const products = await db.product.findMany({
-    where: buildProductSearchWhereForQueries(items.map((item) => item.query), storeKeys),
-    orderBy: { name: "asc" },
-    ...productWithLatestPriceForStores(storeKeys),
-  });
+  if (!hasDatabaseConfig()) {
+    const result = compareCartWithProducts(items, demoProducts);
+    writeCache(compareCache, cacheKey, result, COMPARE_CACHE_TTL_MS);
+    logTiming("cart comparison", startedAt, { items: items.length, source: "demo" });
+    return result;
+  }
+
+  const productsByQuery = await Promise.all(
+    items.map((item) =>
+      fetchProductCandidates(
+        item.query,
+        storeKeys,
+        getPositiveIntegerEnv(
+          "COMPARE_CANDIDATES_PER_ITEM",
+          DEFAULT_COMPARE_CANDIDATES_PER_ITEM,
+          MAX_COMPARE_CANDIDATES_PER_ITEM
+        ),
+        "compare"
+      )
+    )
+  );
+  const products = dedupeProductRows(productsByQuery.flat());
 
   const mappedProducts = products.flatMap((product) => {
     const mapped = toApiProduct(product);
     return mapped ? [mapped] : [];
   });
 
-  return compareCartWithProducts(items, mappedProducts);
+  const result = compareCartWithProducts(items, mappedProducts);
+  writeCache(compareCache, cacheKey, result, COMPARE_CACHE_TTL_MS);
+  logTiming("cart comparison", startedAt, {
+    items: items.length,
+    source: "database",
+    candidates: products.length,
+    mapped: mappedProducts.length,
+  });
+  return result;
 }
 
 function searchDemoProductsPage(
@@ -263,6 +339,103 @@ function productWithLatestPriceForStores(stores: readonly StoreKey[]) {
   });
 }
 
+async function fetchProductCandidates(
+  query: string,
+  stores: readonly StoreKey[],
+  take: number,
+  purpose: "search" | "compare"
+) {
+  const startedAt = performance.now();
+  const products = await db.product.findMany({
+    where: buildProductSearchWhere(query, stores),
+    orderBy: [{ updatedAt: "desc" }, { name: "asc" }],
+    take,
+    ...productWithLatestPriceForStores(stores),
+  });
+
+  logTiming("product candidate query", startedAt, {
+    query,
+    stores,
+    purpose,
+    take,
+    rows: products.length,
+  });
+
+  return products;
+}
+
+function dedupeProductRows(products: ProductWithLatestPrice[]) {
+  return [...new Map(products.map((product) => [product.id, product])).values()];
+}
+
+function getPositiveIntegerEnv(name: string, fallback: number, max: number) {
+  const value = Number(process.env[name]);
+
+  if (!Number.isInteger(value) || value < 1) {
+    return fallback;
+  }
+
+  return Math.min(value, max);
+}
+
+function productSearchCacheKey(
+  query: string,
+  options: Required<Pick<ProductSearchOptions, "page" | "limit">> & { stores: StoreKey[] }
+) {
+  return JSON.stringify({
+    query: normalizeProductName(query),
+    page: options.page,
+    limit: options.limit,
+    stores: [...options.stores].sort(),
+  });
+}
+
+function compareCacheKey(items: Array<{ query: string; quantity: number }>) {
+  return JSON.stringify(
+    items.map((item) => ({
+      query: normalizeProductName(item.query),
+      quantity: item.quantity,
+    }))
+  );
+}
+
+function readCache<T>(cache: Map<string, CacheEntry<T>>, key: string) {
+  const entry = cache.get(key);
+
+  if (!entry) {
+    return null;
+  }
+
+  if (entry.expiresAt <= Date.now()) {
+    cache.delete(key);
+    return null;
+  }
+
+  return entry.value;
+}
+
+function writeCache<T>(cache: Map<string, CacheEntry<T>>, key: string, value: T, ttlMs: number) {
+  if (cache.size >= CACHE_MAX_ENTRIES) {
+    const oldestKey = cache.keys().next().value as string | undefined;
+    if (oldestKey) {
+      cache.delete(oldestKey);
+    }
+  }
+
+  cache.set(key, {
+    expiresAt: Date.now() + ttlMs,
+    value,
+  });
+}
+
+function logTiming(label: string, startedAt: number, details: Record<string, unknown>) {
+  if (process.env.NODE_ENV === "test") {
+    return;
+  }
+
+  console.info(`${label} completed in ${Math.round(performance.now() - startedAt)}ms`, details);
+}
+
 function buildTokenSearchClause(query: string): Prisma.ProductWhereInput | null {
   const tokens = productSearchTokens(query);
 
@@ -294,18 +467,5 @@ function buildProductSearchWhere(query: string, stores: readonly StoreKey[]): Pr
       { brand: { contains: query, mode: "insensitive" } },
       ...(tokenClause ? [tokenClause] : []),
     ],
-  };
-}
-
-function buildProductSearchWhereForQueries(queries: string[], stores: readonly StoreKey[]): Prisma.ProductWhereInput {
-  const clauses = queries
-    .map((query) => buildProductSearchWhere(query, stores).OR)
-    .flat()
-    .filter(Boolean) as Prisma.ProductWhereInput[];
-
-  return {
-    available: true,
-    priceHistory: { some: { store: { is: { key: { in: [...stores] } } } } },
-    ...(clauses.length > 0 ? { OR: clauses } : {}),
   };
 }

@@ -7,6 +7,7 @@ import {
 } from "@/lib/matching";
 import {
   classifyProduct,
+  classifyProductCategories,
   calculateStandardizedPricePerUnit,
   extractProductMeasure,
   normalizeProductName,
@@ -223,6 +224,11 @@ describe("calculateProductSimilarity", () => {
   const coca = mockProducts.find((product) => product.id === "amantino-mock-refrigerante-coca-2l")!;
   const agua = mockProducts.find((product) => product.id === "amantino-mock-agua-1-5l")!;
   const leite = mockProducts.find((product) => product.id === "escola-mock-leite-1l")!;
+  const corteDeFrango = product("escola", "coxa-sobrecoxa-1kg", "Coxa Sobrecoxa Congelada 1kg", 12.9, {
+    quantity: 1,
+    unit: "kg",
+    packageText: "1kg",
+  });
   const papelHigienico = mockProducts.find(
     (product) => product.id === "amantino-mock-papel-higienico-12un"
   )!;
@@ -242,12 +248,20 @@ describe("calculateProductSimilarity", () => {
   it("penaliza produto com base semantica diferente", () => {
     expect(calculateProductSimilarity("Leite condensado 395g", leite)).toBe(0);
   });
+
+  it("aceita categoria ampla junto de produto especifico", () => {
+    expect(calculateProductSimilarity("carne frango 1kg", corteDeFrango)).toBeGreaterThan(0.44);
+  });
 });
 
 describe("classifyProduct", () => {
   it("identifica categorias diferentes para evitar falso positivo", () => {
     expect(classifyProduct("Papel toalha 2 unidades")).toBe("papel-toalha");
     expect(classifyProduct("Papel higiênico 12 unidades")).toBe("papel-higienico");
+  });
+
+  it("identifica mais de uma categoria quando a busca tem contexto amplo", () => {
+    expect(classifyProductCategories("carne frango")).toEqual(["carne", "frango"]);
   });
 });
 
