@@ -59,7 +59,7 @@ export function Navbar() {
             <button onClick={handleLogout} title="Sair" className="rounded-full p-2 text-slate-500 transition hover:bg-slate-100 hover:text-slate-950"><LogOut className="h-4 w-4" /></button>
           </div>
         ) : (
-          <Link href="/login" className="rounded-full bg-slate-950 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-slate-800">Entrar</Link>
+          <Link href="/login" className="rounded-full bg-slate-950 px-4 py-2.5 text-sm font-semibold text-slate-50 transition hover:bg-slate-800 hover:text-white">Entrar</Link>
         )}
       </div>
       <nav className="fixed inset-x-3 bottom-3 z-30 grid grid-cols-5 rounded-[22px] border border-white/60 bg-slate-950/95 p-1.5 text-white shadow-2xl backdrop-blur-xl md:hidden">

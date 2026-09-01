@@ -133,11 +133,14 @@ export function HomeClient({
 
   function updateQuantity(id: string, delta: number) {
     setCart((current) =>
-      current
-        .map((item) =>
-          item.id === id ? { ...item, quantity: Math.max(1, item.quantity + delta) } : item
-        )
-        .filter(Boolean)
+      current.flatMap((item) => {
+        if (item.id !== id) {
+          return [item];
+        }
+
+        const nextQuantity = item.quantity + delta;
+        return nextQuantity < 1 ? [] : [{ ...item, quantity: nextQuantity }];
+      })
     );
   }
 
