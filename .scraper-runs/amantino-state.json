@@ -1,0 +1,246 @@
+{
+  "scraperKey": "amantino",
+  "updatedAt": "2026-09-01T00:18:37.661Z",
+  "categories": {
+    "Alimento-Infantil": {
+      "key": "Alimento-Infantil",
+      "label": "Alimento-Infantil",
+      "status": "succeeded",
+      "startedAt": "2026-08-31T23:40:11.525Z",
+      "finishedAt": "2026-08-31T23:41:32.174Z",
+      "productCount": 26
+    },
+    "Azeite-E-Oleo-Composto": {
+      "key": "Azeite-E-Oleo-Composto",
+      "label": "Azeite-E-Oleo-Composto",
+      "status": "succeeded",
+      "startedAt": "2026-08-31T23:41:32.176Z",
+      "finishedAt": "2026-08-31T23:42:43.230Z",
+      "productCount": 24
+    },
+    "Bebida-Alcoolica": {
+      "key": "Bebida-Alcoolica",
+      "label": "Bebida-Alcoolica",
+      "status": "succeeded",
+      "startedAt": "2026-08-31T23:42:43.232Z",
+      "finishedAt": "2026-08-31T23:44:11.273Z",
+      "productCount": 50
+    },
+    "Bebida-Nao-Alcoolica": {
+      "key": "Bebida-Nao-Alcoolica",
+      "label": "Bebida-Nao-Alcoolica",
+      "status": "succeeded",
+      "startedAt": "2026-08-31T23:44:11.275Z",
+      "finishedAt": "2026-08-31T23:45:41.587Z",
+      "productCount": 51
+    },
+    "Biscoito": {
+      "key": "Biscoito",
+      "label": "Biscoito",
+      "status": "succeeded",
+      "startedAt": "2026-08-31T23:45:41.588Z",
+      "finishedAt": "2026-08-31T23:47:10.156Z",
+      "productCount": 51
+    },
+    "Bomboniere": {
+      "key": "Bomboniere",
+      "label": "Bomboniere",
+      "status": "succeeded",
+      "startedAt": "2026-08-31T23:47:10.158Z",
+      "finishedAt": "2026-08-31T23:48:32.785Z",
+      "productCount": 48
+    },
+    "Carne": {
+      "key": "Carne",
+      "label": "Carne",
+      "status": "succeeded",
+      "startedAt": "2026-08-31T23:48:32.786Z",
+      "finishedAt": "2026-08-31T23:49:55.110Z",
+      "productCount": 48
+    },
+    "Cereais": {
+      "key": "Cereais",
+      "label": "Cereais",
+      "status": "succeeded",
+      "startedAt": "2026-08-31T23:49:55.111Z",
+      "finishedAt": "2026-08-31T23:51:25.333Z",
+      "productCount": 48
+    },
+    "Cerveja": {
+      "key": "Cerveja",
+      "label": "Cerveja",
+      "status": "succeeded",
+      "startedAt": "2026-08-31T23:51:25.334Z",
+      "finishedAt": "2026-08-31T23:52:44.886Z",
+      "productCount": 44
+    },
+    "Congelado": {
+      "key": "Congelado",
+      "label": "Congelado",
+      "status": "succeeded",
+      "startedAt": "2026-08-31T23:52:44.888Z",
+      "finishedAt": "2026-08-31T23:54:10.794Z",
+      "productCount": 47
+    },
+    "Conservas": {
+      "key": "Conservas",
+      "label": "Conservas",
+      "status": "succeeded",
+      "startedAt": "2026-08-31T23:54:10.796Z",
+      "finishedAt": "2026-08-31T23:55:35.580Z",
+      "productCount": 48
+    },
+    "Descartável": {
+      "key": "Descartável",
+      "label": "Descartável",
+      "status": "succeeded",
+      "startedAt": "2026-08-31T23:55:35.582Z",
+      "finishedAt": "2026-08-31T23:57:00.901Z",
+      "productCount": 48
+    },
+    "Emporio": {
+      "key": "Emporio",
+      "label": "Emporio",
+      "status": "succeeded",
+      "startedAt": "2026-08-31T23:57:00.903Z",
+      "finishedAt": "2026-08-31T23:58:17.938Z",
+      "productCount": 35
+    },
+    "Frios-E-Laticinios": {
+      "key": "Frios-E-Laticinios",
+      "label": "Frios-E-Laticinios",
+      "status": "succeeded",
+      "startedAt": "2026-08-31T23:58:17.940Z",
+      "finishedAt": "2026-08-31T23:59:41.409Z",
+      "productCount": 59
+    },
+    "Higiene-E-Beleza": {
+      "key": "Higiene-E-Beleza",
+      "label": "Higiene-E-Beleza",
+      "status": "succeeded",
+      "startedAt": "2026-08-31T23:59:41.410Z",
+      "finishedAt": "2026-09-01T00:00:54.735Z",
+      "productCount": 51
+    },
+    "Hortifruti": {
+      "key": "Hortifruti",
+      "label": "Hortifruti",
+      "status": "succeeded",
+      "startedAt": "2026-09-01T00:00:54.736Z",
+      "finishedAt": "2026-09-01T00:02:07.090Z",
+      "productCount": 50
+    },
+    "Inseticida-Repelente": {
+      "key": "Inseticida-Repelente",
+      "label": "Inseticida-Repelente",
+      "status": "succeeded",
+      "startedAt": "2026-09-01T00:02:07.091Z",
+      "finishedAt": "2026-09-01T00:03:37.243Z",
+      "productCount": 47
+    },
+    "Limpeza": {
+      "key": "Limpeza",
+      "label": "Limpeza",
+      "status": "succeeded",
+      "startedAt": "2026-09-01T00:03:37.245Z",
+      "finishedAt": "2026-09-01T00:04:51.098Z",
+      "productCount": 48
+    },
+    "Massas-E-Sopas": {
+      "key": "Massas-E-Sopas",
+      "label": "Massas-E-Sopas",
+      "status": "succeeded",
+      "startedAt": "2026-09-01T00:04:51.101Z",
+      "finishedAt": "2026-09-01T00:06:13.728Z",
+      "productCount": 48
+    },
+    "Matinal": {
+      "key": "Matinal",
+      "label": "Matinal",
+      "status": "succeeded",
+      "startedAt": "2026-09-01T00:06:13.730Z",
+      "finishedAt": "2026-09-01T00:07:21.960Z",
+      "productCount": 48
+    },
+    "Molhos-E-Temperos": {
+      "key": "Molhos-E-Temperos",
+      "label": "Molhos-E-Temperos",
+      "status": "succeeded",
+      "startedAt": "2026-09-01T00:07:21.962Z",
+      "finishedAt": "2026-09-01T00:08:29.641Z",
+      "productCount": 48
+    },
+    "Naturais": {
+      "key": "Naturais",
+      "label": "Naturais",
+      "status": "succeeded",
+      "startedAt": "2026-09-01T00:08:29.642Z",
+      "finishedAt": "2026-09-01T00:09:36.717Z",
+      "productCount": 48
+    },
+    "Oriental": {
+      "key": "Oriental",
+      "label": "Oriental",
+      "status": "succeeded",
+      "startedAt": "2026-09-01T00:09:36.718Z",
+      "finishedAt": "2026-09-01T00:10:44.239Z",
+      "productCount": 29
+    },
+    "Padaria": {
+      "key": "Padaria",
+      "label": "Padaria",
+      "status": "succeeded",
+      "startedAt": "2026-09-01T00:10:44.241Z",
+      "finishedAt": "2026-09-01T00:12:00.856Z",
+      "productCount": 53
+    },
+    "Papelaria": {
+      "key": "Papelaria",
+      "label": "Papelaria",
+      "status": "succeeded",
+      "startedAt": "2026-09-01T00:12:00.857Z",
+      "finishedAt": "2026-09-01T00:13:09.217Z",
+      "productCount": 27
+    },
+    "Pet-Shop": {
+      "key": "Pet-Shop",
+      "label": "Pet-Shop",
+      "status": "succeeded",
+      "startedAt": "2026-09-01T00:13:09.219Z",
+      "finishedAt": "2026-09-01T00:14:19.170Z",
+      "productCount": 50
+    },
+    "Po-Para-Preparos": {
+      "key": "Po-Para-Preparos",
+      "label": "Po-Para-Preparos",
+      "status": "succeeded",
+      "startedAt": "2026-09-01T00:14:19.172Z",
+      "finishedAt": "2026-09-01T00:15:28.782Z",
+      "productCount": 48
+    },
+    "Produto-Amantino": {
+      "key": "Produto-Amantino",
+      "label": "Produto-Amantino",
+      "status": "succeeded",
+      "startedAt": "2026-09-01T00:15:28.784Z",
+      "finishedAt": "2026-09-01T00:16:03.584Z",
+      "productCount": 2
+    },
+    "Sobremesas": {
+      "key": "Sobremesas",
+      "label": "Sobremesas",
+      "status": "succeeded",
+      "startedAt": "2026-09-01T00:16:03.585Z",
+      "finishedAt": "2026-09-01T00:17:21.476Z",
+      "productCount": 51
+    },
+    "Utilidade": {
+      "key": "Utilidade",
+      "label": "Utilidade",
+      "status": "succeeded",
+      "startedAt": "2026-09-01T00:17:21.478Z",
+      "finishedAt": "2026-09-01T00:18:37.661Z",
+      "productCount": 51
+    }
+  }
+}
