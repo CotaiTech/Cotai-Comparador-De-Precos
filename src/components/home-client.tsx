@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { ArrowRight, CheckCircle2 } from "lucide-react";
+import { ArrowDown, CheckCircle2 } from "lucide-react";
 import { Navbar } from "@/components/navbar";
 import { ProductSearch } from "@/components/product-search";
 import { PromotionCard } from "@/components/promotion-card";
@@ -133,11 +133,14 @@ export function HomeClient({
 
   function updateQuantity(id: string, delta: number) {
     setCart((current) =>
-      current
-        .map((item) =>
-          item.id === id ? { ...item, quantity: Math.max(1, item.quantity + delta) } : item
-        )
-        .filter(Boolean)
+      current.flatMap((item) => {
+        if (item.id !== id) {
+          return [item];
+        }
+
+        const nextQuantity = item.quantity + delta;
+        return nextQuantity < 1 ? [] : [{ ...item, quantity: nextQuantity }];
+      })
     );
   }
 
@@ -213,7 +216,7 @@ export function HomeClient({
                   ].map((item, index) => (
                     <div key={item} className="flex items-center justify-between rounded-2xl bg-white/10 px-4 py-3">
                       <span>{item}</span>
-                      {index < 4 ? <ArrowRight className="h-4 w-4" /> : <CheckCircle2 className="h-4 w-4" />}
+                      {index < 4 ? <ArrowDown className="h-4 w-4" /> : <CheckCircle2 className="h-4 w-4" />}
                     </div>
                   ))}
                 </div>

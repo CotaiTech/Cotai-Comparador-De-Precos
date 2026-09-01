@@ -82,7 +82,7 @@ export function LoginForm() {
               <span className="relative mt-2 block"><LockKeyhole className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" /><input required type="password" minLength={6} autoComplete={isRegister ? "new-password" : "current-password"} value={password} onChange={(event) => setPassword(event.target.value)} placeholder={isRegister ? "Ao menos 6 caracteres" : "Sua senha"} className="w-full rounded-2xl border border-slate-200 bg-white py-3.5 pl-11 pr-4 outline-none transition focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100" /></span>
             </label>
             {error ? <p role="alert" className="rounded-2xl bg-orange-50 px-4 py-3 text-sm text-orange-700">{error}</p> : null}
-            <button disabled={isSubmitting} className="flex w-full items-center justify-center gap-2 rounded-2xl bg-emerald-600 px-5 py-3.5 font-semibold text-white transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-70">
+            <button disabled={isSubmitting} className="flex w-full items-center justify-center gap-2 rounded-2xl bg-emerald-600 px-5 py-3.5 font-semibold text-white transition hover:bg-emerald-700 hover:text-white disabled:cursor-not-allowed disabled:opacity-70">
               {isSubmitting ? <LoaderCircle className="h-5 w-5 animate-spin" /> : <>{isRegister ? "Criar conta" : "Entrar"}<ArrowRight className="h-5 w-5" /></>}
             </button>
           </form>

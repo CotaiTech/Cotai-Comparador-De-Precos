@@ -1,9 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   AlertTriangle,
   BrainCircuit,
+  ChevronDown,
   CheckCircle2,
   FileCheck2,
   LoaderCircle,
@@ -31,14 +32,39 @@ export function ComparisonResult({ result, user }: ComparisonResultProps) {
   });
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState("");
+  const [expandedOptimizedStores, setExpandedOptimizedStores] = useState<Set<string>>(new Set());
   const router = useRouter();
   const selectedTotal = selectedOption.total;
   const selectedIsOptimized = selectedOption.id === "optimized";
+  const selectedFuelCost = selectedOption.type === "route" ? selectedOption.travelCost : 0;
+
+  useEffect(() => {
+    setSelectedOption({
+      id: "optimized",
+      type: "optimized",
+      label: "Compra otimizada",
+      total: result.optimized.total,
+    });
+    setExpandedOptimizedStores(new Set());
+  }, [result]);
 
   function missingItemsForStore(store: (typeof storeKeys)[number]) {
     return result.lines
       .filter((line) => !line.stores[store].found)
       .map((line) => line.query);
+  }
+
+  function toggleOptimizedStore(store: string) {
+    setExpandedOptimizedStores((current) => {
+      const next = new Set(current);
+      if (next.has(store)) {
+        next.delete(store);
+      } else {
+        next.add(store);
+      }
+
+      return next;
+    });
   }
 
   async function savePlanning() {
@@ -69,6 +95,11 @@ export function ComparisonResult({ result, user }: ComparisonResultProps) {
             <p className="mt-5 text-4xl font-semibold tracking-tight">
               {formatCurrency(selectedTotal)}
             </p>
+            {selectedFuelCost > 0 ? (
+              <p className="mt-1 text-sm font-medium text-emerald-200">
+                +{formatCurrency(selectedFuelCost)} Combustível
+              </p>
+            ) : null}
             <p className="mt-2 text-sm text-slate-300">
               {selectedIsOptimized
                 ? "Menor preço por produto entre as lojas disponíveis."
@@ -76,17 +107,44 @@ export function ComparisonResult({ result, user }: ComparisonResultProps) {
             </p>
           </div>
 
-          <div className="rounded-[24px] border border-emerald-200 bg-emerald-50 p-5">
+          <button
+            type="button"
+            disabled={!result.winner.store}
+            onClick={() => {
+              if (!result.winner.store || result.winner.total === null) {
+                return;
+              }
+
+              const store = result.winner.store;
+              setSelectedOption({
+                id: `single-${store}`,
+                type: "single-store",
+                label: `Compra completa em ${storeMeta[store].label}`,
+                store,
+                total: result.winner.total,
+              });
+            }}
+            className={`rounded-[24px] border p-5 text-left transition ${
+              selectedOption.id === `single-${result.winner.store}`
+                ? "border-slate-950 bg-white shadow-[0_16px_34px_rgba(15,23,42,0.12)]"
+                : result.winner.store
+                  ? "border-emerald-200 bg-emerald-50 hover:border-emerald-500"
+                  : "cursor-not-allowed border-emerald-100 bg-emerald-50 opacity-80"
+            }`}
+          >
             <div className="flex items-center gap-3">
               <div className="rounded-2xl bg-emerald-100 p-3 text-emerald-700">
                 <Trophy className="h-5 w-5" />
               </div>
-              <div>
+              <div className="min-w-0 flex-1">
                 <p className="text-sm text-emerald-700">Melhor loja completa</p>
                 <h3 className="text-xl font-semibold tracking-tight text-slate-950">
                   {result.winner.store ? storeMeta[result.winner.store].label : "Sem vencedor"}
                 </h3>
               </div>
+              {selectedOption.id === `single-${result.winner.store}` ? (
+                <CheckCircle2 className="h-5 w-5 shrink-0 text-slate-950" />
+              ) : null}
             </div>
             <p className="mt-5 text-3xl font-semibold tracking-tight text-slate-950">
               {result.winner.total !== null ? formatCurrency(result.winner.total) : "Indisponível"}
@@ -96,7 +154,7 @@ export function ComparisonResult({ result, user }: ComparisonResultProps) {
                 ? `Economia: ${formatCurrency(result.winner.savings)} (${result.winner.savingsPercentage}%).`
                 : "Nenhuma loja encontrou todos os itens."}
             </p>
-          </div>
+          </button>
 
           <button
             type="button"
@@ -215,17 +273,56 @@ export function ComparisonResult({ result, user }: ComparisonResultProps) {
         </div>
 
         <div className="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-          {storeKeys.map((store) => (
-            <div key={store} className="rounded-[24px] bg-slate-50 p-5">
-              <p className="font-semibold text-slate-900">{storeMeta[store].label}</p>
-              <p className="mt-3 text-3xl font-semibold tracking-tight text-slate-950">
-                {formatCurrency(result.optimized.allocations[store].total)}
-              </p>
-              <p className="mt-2 text-sm text-slate-500">
-                {result.optimized.allocations[store].items} produtos
-              </p>
-            </div>
-          ))}
+          {storeKeys.map((store) => {
+            const allocation = result.optimized.allocations[store];
+            const expanded = expandedOptimizedStores.has(store);
+
+            return (
+              <div key={store} className="flex h-full flex-col rounded-[24px] bg-slate-50 p-5">
+                <button
+                  type="button"
+                  onClick={() => toggleOptimizedStore(store)}
+                  aria-expanded={expanded}
+                  className="flex h-full flex-col text-left"
+                >
+                  <div className="flex min-h-10 items-start justify-between gap-3">
+                    <p className="font-semibold leading-5 text-slate-900">{storeMeta[store].label}</p>
+                    <ChevronDown
+                      className={`h-5 w-5 shrink-0 text-slate-500 transition ${expanded ? "rotate-180" : ""}`}
+                    />
+                  </div>
+                  <p className="mt-3 text-3xl font-semibold tracking-tight text-slate-950">
+                    {formatCurrency(allocation.total)}
+                  </p>
+                  <p className="mt-2 text-sm text-slate-500">
+                    {allocation.items} produtos
+                  </p>
+                </button>
+
+                {expanded ? (
+                  <div className="mt-4 space-y-3 border-t border-slate-200 pt-4">
+                    {allocation.lines.length > 0 ? (
+                      allocation.lines.map((line) => (
+                        <div key={`${store}-${line.query}`} className="text-sm">
+                          <div className="flex items-start justify-between gap-3">
+                            <p className="font-medium leading-5 text-slate-800">{line.product.name}</p>
+                            <p className="shrink-0 font-semibold text-slate-950">
+                              {formatCurrency(line.subtotal)}
+                            </p>
+                          </div>
+                          <p className="mt-1 text-xs text-slate-500">
+                            {line.quantity} unidade(s)
+                          </p>
+                        </div>
+                      ))
+                    ) : (
+                      <p className="text-sm text-slate-500">Nenhum item nesta loja.</p>
+                    )}
+                  </div>
+                ) : null}
+              </div>
+            );
+          })}
         </div>
       </div>
 
