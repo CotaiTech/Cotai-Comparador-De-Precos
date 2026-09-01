@@ -44,6 +44,31 @@ export type OptimizedSummary = {
   >;
 };
 
+export type PurchaseOptionSelection =
+  | {
+      id: "optimized";
+      type: "optimized";
+      label: string;
+      total: number;
+    }
+  | {
+      id: `single-${StoreKey}`;
+      type: "single-store";
+      label: string;
+      store: StoreKey;
+      total: number;
+    }
+  | {
+      id: "route-rapida" | "route-curta" | "route-economica";
+      type: "route";
+      label: string;
+      stores: StoreKey[];
+      total: number;
+      purchaseCost: number;
+      travelCost: number;
+      distance: number;
+    };
+
 export type CompareResult = {
   lines: ComparisonLine[];
   stores: Record<StoreKey, StoreSummary>;
@@ -55,6 +80,7 @@ export type CompareResult = {
   };
   optimized: OptimizedSummary;
   containsMockData: boolean;
+  selectedOption?: PurchaseOptionSelection;
 };
 
 export function compareCart(
@@ -115,8 +141,7 @@ export function compareCart(
     .map((store) => stores[store])
     .filter((store) => store.complete)
     .sort((a, b) => a.total - b.total);
-  const everyStoreComplete = completeStores.length === storeKeys.length;
-  const winnerStore = everyStoreComplete ? (completeStores[0] ?? null) : null;
+  const winnerStore = completeStores[0] ?? null;
   const runnerUp = completeStores[1] ?? null;
   const savings = winnerStore && runnerUp ? Number((runnerUp.total - winnerStore.total).toFixed(2)) : 0;
   const savingsPercentage =

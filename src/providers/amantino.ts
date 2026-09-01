@@ -1,9 +1,5 @@
-import { mockProducts } from "@/data/mock-catalog";
-import { normalizeProductName } from "@/lib/normalize-product";
 import { scrapeAllAmantinoSeededProducts, scrapeAmantinoProducts } from "@/scrapers/amantino";
 import { Product, StoreProvider } from "@/providers/types";
-
-const amantinoMockProducts = mockProducts.filter((product) => product.store === "amantino");
 
 export class AmantinoProvider implements StoreProvider {
   readonly store = "amantino" as const;
@@ -11,18 +7,16 @@ export class AmantinoProvider implements StoreProvider {
   readonly reliability = "hybrid" as const;
 
   async searchProducts(query: string): Promise<Product[]> {
-    const normalized = normalizeProductName(query);
-
     try {
       const liveProducts = await scrapeAmantinoProducts({ query, limit: 50 });
       if (liveProducts.length > 0) {
         return liveProducts;
       }
     } catch {
-      // Falls back to local data if the live site is unavailable.
+      // Live site unavailable.
     }
 
-    return amantinoMockProducts.filter((product) => product.normalizedName.includes(normalized));
+    return [];
   }
 
   async getProducts(): Promise<Product[]> {
@@ -32,10 +26,10 @@ export class AmantinoProvider implements StoreProvider {
         return liveProducts;
       }
     } catch {
-      // Falls back to local data if the live site is unavailable.
+      // Live site unavailable.
     }
 
-    return amantinoMockProducts;
+    return [];
   }
 
   async getPromotions(): Promise<Product[]> {
@@ -45,9 +39,9 @@ export class AmantinoProvider implements StoreProvider {
         return promotions.filter((product) => product.promotion);
       }
     } catch {
-      // Falls back to local data if the live site is unavailable.
+      // Live site unavailable.
     }
 
-    return amantinoMockProducts.filter((product) => product.promotion);
+    return [];
   }
 }

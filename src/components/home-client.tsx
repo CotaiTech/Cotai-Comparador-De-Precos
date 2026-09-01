@@ -7,7 +7,6 @@ import { ProductSearch } from "@/components/product-search";
 import { PromotionCard } from "@/components/promotion-card";
 import { ShoppingCart, CartViewItem } from "@/components/shopping-cart";
 import { ComparisonResult } from "@/components/comparison-result";
-import { DemoBanner } from "@/components/demo-banner";
 import { CompareResult } from "@/lib/compare-cart";
 import { Product } from "@/providers/types";
 import { AccountUser } from "@/lib/account-types";
@@ -32,6 +31,7 @@ export function HomeClient({
   const [comparisonError, setComparisonError] = useState("");
   const [user, setUser] = useState<AccountUser | null>(null);
   const [radarMessage, setRadarMessage] = useState("");
+  const [searchClearSignal, setSearchClearSignal] = useState(0);
 
   useEffect(() => {
     fetch("/api/auth/me").then((response) => response.json()).then((data: { user: AccountUser | null }) => setUser(data.user)).catch(() => null);
@@ -96,6 +96,32 @@ export function HomeClient({
     });
   }
 
+  function getCartQuantity(product: Product) {
+    return cart.find((item) => item.query === product.name)?.quantity ?? 0;
+  }
+
+  function increaseProductQuantity(product: Product) {
+    handleAdd(product);
+  }
+
+  function decreaseProductQuantity(product: Product) {
+    setCart((current) => {
+      const existing = current.find((item) => item.query === product.name);
+
+      if (!existing) {
+        return current;
+      }
+
+      if (existing.quantity <= 1) {
+        return current.filter((item) => item.id !== existing.id);
+      }
+
+      return current.map((item) =>
+        item.id === existing.id ? { ...item, quantity: item.quantity - 1 } : item
+      );
+    });
+  }
+
   async function handleTrack(product: Product) {
     if (!user) {
       window.location.href = "/login";
@@ -135,6 +161,7 @@ export function HomeClient({
 
       const data = (await response.json()) as CompareResult;
       setComparison(data);
+      setSearchClearSignal((current) => current + 1);
     } catch {
       setComparisonError("Não foi possível comparar sua lista agora.");
     } finally {
@@ -149,7 +176,6 @@ export function HomeClient({
       <Navbar />
 
       <main className="mx-auto flex max-w-7xl flex-col gap-10 px-4 py-8 sm:px-6 lg:px-8">
-        <DemoBanner />
         {radarMessage ? <p className="rounded-2xl bg-emerald-50 px-4 py-3 text-sm text-emerald-800">{radarMessage}</p> : null}
 
         {!promotionsOnly && !compareOnly ? (
@@ -157,7 +183,7 @@ export function HomeClient({
             <div>
               <div className="inline-flex items-center gap-2 rounded-full bg-white px-4 py-2 text-sm font-medium text-emerald-700 shadow-sm">
                 <CheckCircle2 className="h-4 w-4" />
-                Comparação rápida para o hackathon
+                Comparação inteligente para compras
               </div>
               <h1 className="mt-6 max-w-2xl text-5xl font-semibold tracking-tight text-slate-950 sm:text-6xl">
                 Compare sua compra e economize.
@@ -176,7 +202,7 @@ export function HomeClient({
 
             <div className="rounded-[36px] border border-black/5 bg-white p-6 shadow-[0_18px_45px_rgba(16,34,21,0.08)]">
               <div className="rounded-[28px] bg-gradient-to-br from-emerald-500 to-emerald-700 p-6 text-white">
-                <p className="text-sm uppercase tracking-[0.24em] text-emerald-100">Fluxo principal</p>
+                <p className="text-sm uppercase tracking-[0.24em] text-emerald-100">Como funciona</p>
                 <div className="mt-6 space-y-4">
                   {[
                     "Pesquise produtos",
@@ -203,7 +229,16 @@ export function HomeClient({
         <section className="grid gap-8 lg:grid-cols-[1.15fr_0.85fr]">
           {!promotionsOnly ? (
             <div className="space-y-8">
-              {!compareOnly ? <ProductSearch onAdd={handleAdd} onTrack={handleTrack} /> : null}
+              {!compareOnly ? (
+                <ProductSearch
+                  onAdd={handleAdd}
+                  getCartQuantity={getCartQuantity}
+                  onIncrease={increaseProductQuantity}
+                  onDecrease={decreaseProductQuantity}
+                  onTrack={handleTrack}
+                  clearSignal={searchClearSignal}
+                />
+              ) : null}
               {comparisonError ? (
                 <p className="rounded-2xl bg-orange-50 px-4 py-3 text-sm text-orange-700">{comparisonError}</p>
               ) : null}
@@ -241,7 +276,15 @@ export function HomeClient({
           ) : (
             <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
               {promotions.filter((product) => !user || matchesDietPreference(product, user.profile.dietPreference)).slice(0, 6).map((product) => (
-                <PromotionCard key={product.id} product={product} onAdd={handleAdd} onTrack={handleTrack} />
+                <PromotionCard
+                  key={product.id}
+                  product={product}
+                  onAdd={handleAdd}
+                  cartQuantity={getCartQuantity(product)}
+                  onIncrease={increaseProductQuantity}
+                  onDecrease={decreaseProductQuantity}
+                  onTrack={handleTrack}
+                />
               ))}
             </div>
           )}
