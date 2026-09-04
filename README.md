@@ -238,3 +238,4 @@ Cobertura atual:
 - Distâncias e preço do combustível são configurados manualmente no perfil. Mapas, trânsito e preço oficial ao vivo ainda não estão integrados.
 - A foto da nota tenta reconhecer o QR Code quando o navegador oferece suporte. OCR completo da imagem ainda não está disponível; o texto pode ser colado ou digitado para importação.
 - “Salvar em PDF” usa o diálogo de impressão do navegador.
+- A arquitetura foi estruturada para permitir a inclusão de novos supermercados por meio de providers independentes.
